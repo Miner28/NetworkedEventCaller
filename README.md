@@ -1,7 +1,7 @@
 # NetworkedEventCaller
 ### Allows you to send NetworkedEvents with parameters. 
 
-# Requires UdonSharp 1.0!
+# Requires [UdonSharp 1.0!](https://discord.gg/bNNTbrDvUN)
 This prefab is meant only for slightly more ADVANCED users! This still requires coding for it to be useful.
 
 
