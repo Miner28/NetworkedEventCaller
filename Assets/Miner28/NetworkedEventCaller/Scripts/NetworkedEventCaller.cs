@@ -11,7 +11,11 @@ public class NetworkedEventCaller : UdonSharpBehaviour
 
     private static void Log(string log)
     {
-        Debug.Log($"<color=#FF0000>[NetCaller]</color> {log}");
+        Debug.Log($"<color=#FFFF00>[NetCaller]</color> {log}");
+    }
+    private static void LogWarn(string log)
+    {
+        Debug.Log($"<color=#FF0000>[NetCaller]</color> <color=#0000FF>{log}</color>");
     }
 
     #region ArraySyncCaller
@@ -382,7 +386,7 @@ public class NetworkedEventCaller : UdonSharpBehaviour
         }
 
         //TODO largestKnown = networkManager.largest;
-        if (!isQueueRunning && Time.timeSinceLevelLoad - lastSent > 0.3f)
+        if (!isQueueRunning && Time.timeSinceLevelLoad - lastSent > 0.05f)
         {
             lastSent = Time.timeSinceLevelLoad;
             sentOutMethods++;
@@ -620,14 +624,6 @@ public class NetworkedEventCaller : UdonSharpBehaviour
     {
         Log(
             $"PreSerialization - {Networking.GetOwner(gameObject).displayName} - {methodName} - {localSentOut} - {sentOutMethods}");
-
-        string x = ""; //TODO Remove Debug
-        foreach (var arrayParameter in arrayParameters)
-        {
-            x += $"{arrayParameter} -";
-        }
-
-        Log(x);
     }
 
 
@@ -638,7 +634,7 @@ public class NetworkedEventCaller : UdonSharpBehaviour
 
         if (localSentOut >= sentOutMethods && localSentOut != 0)
         {
-            Log("Ignoring - Local more than global");
+            LogWarn("Ignoring - Local more than global");
             localSentOut = sentOutMethods;
             return;
         }
@@ -659,7 +655,7 @@ public class NetworkedEventCaller : UdonSharpBehaviour
     {
         if (!result.success)
         {
-            Log("<color=#FF0000>FAILED SERIALIZATION</color>");
+            LogWarn("<color=#FF0000>FAILED SERIALIZATION</color>");
         }
     }
 
@@ -680,7 +676,7 @@ public class NetworkedEventCaller : UdonSharpBehaviour
         Log($"Adding to queue {method}");
         if (!isQueueRunning)
         {
-            SendCustomEventDelayedSeconds("_QueueManager", 0.3f);
+            SendCustomEventDelayedSeconds("_QueueManager", 0.05f);
             isQueueRunning = true;
         }
     }
@@ -688,7 +684,7 @@ public class NetworkedEventCaller : UdonSharpBehaviour
 
     public void _QueueManager()
     {
-        Debug.Log($"QueueManager running: {queue.Length}");
+        Log($"QueueManager running: {queue.Length}");
         if (queue.Length != 0) // Check to make sure something magical didn't happen
         {
             var current = queue[0];
@@ -700,6 +696,7 @@ public class NetworkedEventCaller : UdonSharpBehaviour
 
             Log($"Handling queue for: {methodName}");
 
+            lastSent = Time.timeSinceLevelLoad;
             sentOutMethods++;
             //TODO largestKnown = networkManager.largest;
 
@@ -709,7 +706,7 @@ public class NetworkedEventCaller : UdonSharpBehaviour
 
         if (queue.Length != 0)
         {
-            SendCustomEventDelayedSeconds("_QueueManager", 0.3f);
+            SendCustomEventDelayedSeconds("_QueueManager", 0.05f);
         }
         else
         {
@@ -743,14 +740,8 @@ public static class NetCallerExtensions
     public static T[] Remove<T>(this T[] array, int index)
     {
         T[] newArray = new T[array.Length - 1];
-        int i2 = 0;
-        for (int i = 0; i < array.Length; i++)
-        {
-            if (i == index) continue;
-            newArray[i2] = array[i];
-            i2++;
-        }
-
+        Array.Copy(array, newArray, index);
+        Array.Copy(array, index + 1, newArray, index, newArray.Length - index);
         return newArray;
     }
 }
