@@ -1,4 +1,6 @@
-﻿using System.IO;
+﻿using System;
+using System.IO;
+using System.Linq;
 using UdonSharp;
 using UdonSharpEditor;
 using UnityEditor;
@@ -16,6 +18,66 @@ namespace Miner28.NetworkedEventCaller.Editor
         public override void OnInspectorGUI()
         {
             if (UdonSharpGUI.DrawDefaultUdonSharpBehaviourHeader(target)) return;
+            NetworkManager networkManager = (NetworkManager) target;
+
+            bool newDebug = EditorGUILayout.Toggle("Debug mode", networkManager.debug);
+
+            if (newDebug != networkManager.debug)
+            {
+                networkManager.debug = newDebug;
+                var symbols = PlayerSettings.GetScriptingDefineSymbolsForGroup(BuildTargetGroup.Android);
+                Debug.Log($"Android Symbols: {symbols}");
+                if (newDebug)
+                {
+                    var arraySymbols = symbols.Split(';').ToList();
+                    if (!arraySymbols.Contains("NETDEBUG"))
+                    {
+                        arraySymbols.Add("NETDEBUG");
+                    }
+                    symbols = String.Join(";", arraySymbols);
+                }
+                else
+                {
+                    var arraySymbols = symbols.Split(';').ToList();
+                    if (arraySymbols.Contains("NETDEBUG"))
+                    {
+                        arraySymbols.Remove("NETDEBUG");
+                    }
+                    symbols = String.Join(";", arraySymbols);
+                }
+                Debug.Log($"New Android Symbols: {symbols}");
+                
+                
+                
+                PlayerSettings.SetScriptingDefineSymbolsForGroup(BuildTargetGroup.Android, symbols);
+                
+                symbols = PlayerSettings.GetScriptingDefineSymbolsForGroup(BuildTargetGroup.Standalone);
+                Debug.Log($"PC Symbols: {symbols}");
+                if (newDebug)
+                {
+                    var arraySymbols = symbols.Split(';').ToList();
+                    if (!arraySymbols.Contains("NETDEBUG"))
+                    {
+                        arraySymbols.Add("NETDEBUG");
+                    }
+                    symbols = String.Join(";", arraySymbols);
+                }
+                else
+                {
+                    var arraySymbols = symbols.Split(';').ToList();
+                    if (arraySymbols.Contains("NETDEBUG"))
+                    {
+                        arraySymbols.Remove("NETDEBUG");
+                    }
+                    symbols = String.Join(";", arraySymbols);
+                }
+                Debug.Log($"New PC Symbols: {symbols}");
+                
+                
+                
+                PlayerSettings.SetScriptingDefineSymbolsForGroup(BuildTargetGroup.Standalone, symbols);
+
+            }
             
             
             GUILayout.Label("Should always be MaxInstanceSize * 2 + 2");
@@ -23,7 +85,6 @@ namespace Miner28.NetworkedEventCaller.Editor
             
             if (GUILayout.Button("Setup NetworkManager"))
             {
-                NetworkManager networkManager = (NetworkManager) target;
                 GameObject obj = networkManager.gameObject;
                 obj.name = "NetworkManager";
                 

@@ -13,6 +13,8 @@ public class NetworkManager : UdonSharpBehaviour
     
     [HideInInspector]
     public VRCObjectPool pool;
+    [HideInInspector]
+    public bool debug;
     
     [UdonSynced] private int[] poolOwners = new int[100];
     [UdonSynced] private int[] toClean = new int[0];

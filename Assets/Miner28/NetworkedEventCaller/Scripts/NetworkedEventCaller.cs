@@ -11,12 +11,18 @@ public class NetworkedEventCaller : UdonSharpBehaviour
 
     private static void Log(string log)
     {
+        #if NETDEBUG
         Debug.Log($"<color=#FFFF00>[NetCaller]</color> {log}");
-    }
+        #endif
+}
     private static void LogWarn(string log)
     {
+#if NETDEBUG
         Debug.Log($"<color=#FF0000>[NetCaller]</color> <color=#0000FF>{log}</color>");
+#endif
     }
+
+    
 
     #region ArraySyncCaller
 
