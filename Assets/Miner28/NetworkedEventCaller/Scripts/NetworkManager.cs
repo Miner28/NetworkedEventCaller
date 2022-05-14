@@ -47,7 +47,7 @@ public class NetworkManager : UdonSharpBehaviour
             {
                 myCaller = obj.GetComponent<NetworkedEventCaller>();
                 Networking.SetOwner(Networking.LocalPlayer, myCaller.gameObject);
-                Debug.Log("I have got myself Caller - Master");
+                Log("I have got myself Caller - Master");
             }
         }
     }
@@ -86,7 +86,7 @@ public class NetworkManager : UdonSharpBehaviour
                 {
                     myCaller = pool.Pool[i].GetComponent<NetworkedEventCaller>();
                     Networking.SetOwner(Networking.LocalPlayer, myCaller.gameObject);
-                    Debug.Log($"I have got myself Caller - NonMaster {myCaller == null}");
+                    Log($"I have got myself Caller - NonMaster {myCaller == null}");
                 }
             }
         }

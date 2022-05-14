@@ -8,18 +8,20 @@ using VRC.Udon.Common;
 public class NetworkedEventCaller : UdonSharpBehaviour
 {
     [HideInInspector] public NetworkReceiver networkReceiver;
-
-    private static void Log(string log)
+    private bool debug;
+    private void Log(string log)
     {
-        #if NETDEBUG
-        Debug.Log($"<color=#FFFF00>[NetCaller]</color> {log}");
-        #endif
-}
-    private static void LogWarn(string log)
+        if (debug)
+        {
+            Debug.Log($"<color=#FFFF00>[NetCaller]</color> {log}");
+        }
+    }
+    private void LogWarn(string log)
     {
-#if NETDEBUG
-        Debug.Log($"<color=#FF0000>[NetCaller]</color> <color=#0000FF>{log}</color>");
-#endif
+        if (debug)
+        {
+            Debug.Log($"<color=#FF0000>[NetCaller]</color> <color=#0000FF>{log}</color>");
+        }
     }
 
     
@@ -673,6 +675,7 @@ public class NetworkedEventCaller : UdonSharpBehaviour
         if (startRun) return;
         startRun = true;
         parameters = new object[0];
+        debug = networkReceiver.networkManager.debug;
     }
 
 
