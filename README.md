@@ -1,6 +1,6 @@
 # NetworkedEventCaller
 ### Extends VRChat's SendCustomNetworkEvent and allows to send data together with the event.
-### Also improves VRChat'S implementation of NetworkTarget
+### Also improves VRChat's implementation of NetworkTarget
 
 # Requires [UdonSharp 1.0!](https://discord.gg/bNNTbrDvUN)
 This prefab is meant only for slightly more ADVANCED users! This still requires coding for it to be useful.
