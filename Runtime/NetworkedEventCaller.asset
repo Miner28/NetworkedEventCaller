@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c333ccfdd0cbdbc4ca30cef2dd6e6b9b, type: 3}
   m_Name: NetworkedEventCaller
   m_EditorClassIdentifier: 
-  serializedUdonProgramAsset: {fileID: 11400000, guid: d7a30140a6049ab4a940154a05d8762d,
+  serializedUdonProgramAsset: {fileID: 11400000, guid: 8c598f55b85de4f428fd86f7e670c67e,
     type: 2}
   udonAssembly: 
   assemblyError: 
@@ -62,7 +62,7 @@ MonoBehaviour:
       Data: 3|System.RuntimeType, mscorlib
     - Name: 
       Entry: 1
-      Data: NetworkReceiver, Assembly-CSharp
+      Data: NetworkReceiver, NetworkedEventCaller.Runtime
     - Name: 
       Entry: 8
       Data: 
@@ -242,7 +242,7 @@ MonoBehaviour:
       Data: 15|System.RuntimeType, mscorlib
     - Name: 
       Entry: 1
-      Data: Types[], Assembly-CSharp
+      Data: Types[], NetworkedEventCaller.Runtime
     - Name: 
       Entry: 8
       Data: 
