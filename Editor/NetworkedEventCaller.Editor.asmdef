@@ -1,12 +1,15 @@
 {
-    "name": "NetworkedEventCaller.Runtime",
+    "name": "NetworkedEventCaller.Editor",
     "references": [
         "Unity.TextMeshPro",
         "VRC.Udon",
         "UdonSharp.Runtime",
-        "UdonSharp.Editor"
+        "UdonSharp.Editor",
+        "NetworkedEventCaller.Runtime"
     ],
-    "includePlatforms": [],
+    "includePlatforms": [
+        "Editor"
+    ],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
     "overrideReferences": false,

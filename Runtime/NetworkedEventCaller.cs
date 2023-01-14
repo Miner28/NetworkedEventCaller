@@ -4,383 +4,7 @@ using UnityEngine;
 using VRC.SDKBase;
 using VRC.Udon.Common;
 
-[UdonBehaviourSyncMode(BehaviourSyncMode.Manual)]
-public class NetworkedEventCaller : UdonSharpBehaviour
-{
-    [HideInInspector] public NetworkReceiver networkReceiver;
-    private bool debug;
-    private void Log(string log)
-    {
-        if (debug)
-        {
-            Debug.Log($"<color=#FFFF00>[NetCaller]</color> {log}");
-        }
-    }
-    private void LogWarn(string log)
-    {
-        if (debug)
-        {
-            Debug.Log($"<color=#FF0000>[NetCaller]</color> <color=#0000FF>{log}</color>");
-        }
-    }
-
-    
-
-    #region ArraySyncCaller
-
-    [UdonSynced] private string[] arrayParameters = new string[0];
-    [UdonSynced] private Types[] paramTypes = new Types[0];
-    [NonSerialized][UdonSynced] public string methodName = "";
-
-    private object[] parameters;
-    private byte paramCounter;
-    private object[][] queue = new object[0][];
-    private float lastSent;
-    private bool isQueueRunning;
-
-    private Type[] _types = new []
-    {
-        typeof(byte),
-        typeof(sbyte),
-        typeof(int),
-        typeof(uint),
-        typeof(long),
-        typeof(ulong),
-        typeof(short),
-        typeof(ushort),
-        typeof(float),
-        typeof(double),
-        typeof(string),
-        typeof(bool),
-        typeof(VRCPlayerApi),
-        typeof(Color),
-        typeof(Color32),
-        typeof(Vector3),
-        typeof(Quaternion),
-        typeof(byte[]),
-        typeof(sbyte[]),
-        typeof(int[]),
-        typeof(uint[]),
-        typeof(long[]),
-        typeof(ulong[]),
-        typeof(short[]),
-        typeof(ushort[]),
-        typeof(float[]),
-        typeof(double[]),
-        typeof(string[]),
-        typeof(bool[]),
-        typeof(VRCPlayerApi[]),
-
-    };
-
-
-    public void _SendMethod(SyncTarget target, string method, object[] paramsObj)
-    {
-        var arrayParametersLocal = new string[paramsObj.Length];
-        var paramTypesLocal = new Types[paramsObj.Length];
-
-        for (int i = 0; i < paramsObj.Length; i++)
-        {
-            var type = paramsObj[i].GetType();
-
-            var typeId = Array.IndexOf(_types, type);
-            if (typeId == -1) return;
-            
-            var enumType = (Types) typeId;
-
-            paramTypesLocal[i] = enumType;
-            
-            string temp;
-            switch (enumType)
-            {
-                case Types.Byte:
-                    arrayParametersLocal[i] = paramsObj[i].ToString();
-                    break;
-                case Types.SByte:
-                    arrayParametersLocal[i] = paramsObj[i].ToString();
-                    break;
-                case Types.Int32:
-                    arrayParametersLocal[i] = paramsObj[i].ToString();
-                    break;
-                case Types.UInt32:
-                    arrayParametersLocal[i] = paramsObj[i].ToString();
-                    break;
-                case Types.Int64:
-                    arrayParametersLocal[i] = paramsObj[i].ToString();
-                    break;
-                case Types.UInt64:
-                    arrayParametersLocal[i] = paramsObj[i].ToString();
-                    break;
-                case Types.Int16:
-                    arrayParametersLocal[i] = paramsObj[i].ToString();
-                    break;
-                case Types.UInt16:
-                    arrayParametersLocal[i] = paramsObj[i].ToString();
-                    break;
-                case Types.Single:
-                    arrayParametersLocal[i] = paramsObj[i].ToString();
-                    break;
-                case Types.Double:
-                    arrayParametersLocal[i] = paramsObj[i].ToString();
-                    break;
-                case Types.String:
-                    arrayParametersLocal[i] = paramsObj[i].ToString();
-                    break;
-                case Types.Boolean:
-                    arrayParametersLocal[i] = (bool) paramsObj[i] ? "T" : "F";
-                    break;
-                case Types.VRCPlayerApi:
-                {
-                    arrayParametersLocal[i] = ((VRCPlayerApi) paramsObj[i]).playerId.ToString();
-                    break;
-                }
-                case Types.Color:
-                {
-                    Color color = (Color) paramsObj[i];
-                    arrayParametersLocal[i] = $"{color.r}{color.g}{color.b}{color.a}";
-                    break;
-                }
-                case Types.Vector3:
-                {
-                    Vector3 vector = (Vector3) paramsObj[i];
-                    arrayParametersLocal[i] = $"{vector.x}{vector.y}{vector.z}";
-                    break;
-                }
-                case Types.Quaternion:
-                {
-                    Quaternion quaternion = (Quaternion) paramsObj[i];
-                    arrayParametersLocal[i] = $"{quaternion.x}{quaternion.y}{quaternion.z}{quaternion.w}";
-                    break;
-                }
-                case Types.Color32:
-                {
-                    Color32 color32 = (Color32) paramsObj[i];
-                    arrayParametersLocal[i] = $"{color32.r}{color32.g}{color32.b}{color32.a}";
-                    break;
-                }
-                case Types.ByteA:
-                {
-                    temp = "";
-                    var param = (byte[]) paramsObj[i];
-                    if (param.Length != 0)
-                    {
-                        foreach (var b in param)
-                        {
-                            temp += $"{b}";
-                        }
-
-                        temp = temp.Remove(temp.Length - 1);
-                    }
-
-                    arrayParametersLocal[i] = temp;
-                    break;
-                }
-                case Types.SByteA:
-                {
-                    temp = "";
-                    var param = (sbyte[]) paramsObj[i];
-                    if (param.Length != 0)
-                    {
-                        foreach (var b in param)
-                        {
-                            temp += $"{b}";
-                        }
-
-                        temp = temp.Remove(temp.Length - 1);
-                    }
-
-                    arrayParametersLocal[i] = temp;
-                    break;
-                }
-                case Types.Int32A:
-                {
-                    temp = "";
-                    var param = (int[]) paramsObj[i];
-                    if (param.Length != 0)
-                    {
-                        foreach (var b in param)
-                        {
-                            temp += $"{b}";
-                        }
-
-                        temp = temp.Remove(temp.Length - 1);
-                    }
-
-                    arrayParametersLocal[i] = temp;
-                    break;
-                }
-                case Types.UInt32A:
-                {
-                    temp = "";
-                    var param = (uint[]) paramsObj[i];
-                    if (param.Length != 0)
-                    {
-                        foreach (var b in param)
-                        {
-                            temp += $"{b}";
-                        }
-
-                        temp = temp.Remove(temp.Length - 1);
-                    }
-
-                    arrayParametersLocal[i] = temp;
-                    break;
-                }
-                case Types.Int64A:
-                {
-                    temp = "";
-                    var param = (long[]) paramsObj[i];
-                    if (param.Length != 0)
-                    {
-                        foreach (var b in param)
-                        {
-                            temp += $"{b}";
-                        }
-
-                        temp = temp.Remove(temp.Length - 1);
-                    }
-
-                    arrayParametersLocal[i] = temp;
-                    break;
-                }
-                case Types.UInt64A:
-                {
-                    temp = "";
-                    var param = (ulong[]) paramsObj[i];
-                    if (param.Length != 0)
-                    {
-                        foreach (var b in param)
-                        {
-                            temp += $"{b}";
-                        }
-
-                        temp = temp.Remove(temp.Length - 1);
-                    }
-
-                    arrayParametersLocal[i] = temp;
-                    break;
-                }
-                case Types.Int16A:
-                {
-                    temp = "";
-                    var param = (short[]) paramsObj[i];
-                    if (param.Length != 0)
-                    {
-                        foreach (var b in param)
-                        {
-                            temp += $"{b}";
-                        }
-
-                        temp = temp.Remove(temp.Length - 1);
-                    }
-
-                    arrayParametersLocal[i] = temp;
-                    break;
-                }
-                case Types.UInt16A:
-                {
-                    temp = "";
-                    var param = (ushort[]) paramsObj[i];
-                    if (param.Length != 0)
-                    {
-                        foreach (var b in param)
-                        {
-                            temp += $"{b}";
-                        }
-
-                        temp = temp.Remove(temp.Length - 1);
-                    }
-
-                    arrayParametersLocal[i] = temp;
-                    break;
-                }
-                case Types.SingleA:
-                {
-                    temp = "";
-                    var param = (float[]) paramsObj[i];
-                    if (param.Length != 0)
-                    {
-                        foreach (var b in param)
-                        {
-                            temp += $"{b}";
-                        }
-
-                        temp = temp.Remove(temp.Length - 1);
-                    }
-
-                    arrayParametersLocal[i] = temp;
-                    break;
-                }
-                case Types.DoubleA:
-                {
-                    temp = "";
-                    var param = (double[]) paramsObj[i];
-                    if (param.Length != 0)
-                    {
-                        foreach (var b in param)
-                        {
-                            temp += $"{b}";
-                        }
-
-                        temp = temp.Remove(temp.Length - 1);
-                    }
-
-                    arrayParametersLocal[i] = temp;
-                    break;
-                }
-                case Types.StringA:
-                {
-                    temp = "";
-                    var param = (string[]) paramsObj[i];
-                    if (param.Length != 0)
-                    {
-                        foreach (var b in param)
-                        {
-                            temp += $"{b}";
-                        }
-
-                        temp = temp.Remove(temp.Length - 1);
-                    }
-
-                    arrayParametersLocal[i] = temp;
-                    break;
-                }
-                case Types.BooleanA:
-                {
-                    temp = "";
-                    var param = (bool[]) paramsObj[i];
-                    if (param.Length != 0)
-                    {
-                        foreach (var b in param)
-                        {
-                            temp += $"{(b ? 'T' : 'F')}";
-                        }
-
-                        temp = temp.Remove(temp.Length - 1);
-                    }
-
-                    arrayParametersLocal[i] = temp;
-                    break;
-                }
-                case Types.VRCPlayerApiA:
-                {
-                    temp = "";
-                    var param = (VRCPlayerApi[]) paramsObj[i];
-                    if (param.Length != 0)
-                    {
-                        foreach (var b in param)
-                        {
-                            temp += $"{b.playerId.ToString()}";
-                        }
-
-                        temp = temp.Remove(temp.Length - 1);
-                    }
-
-                    arrayParametersLocal[i] = temp;
-                    break;
-                }
-            }
-        }
+/*
 
         if (target == SyncTarget.Local)
         {
@@ -412,272 +36,6 @@ public class NetworkedEventCaller : UdonSharpBehaviour
         {
             EnqueueMethod(method, arrayParametersLocal, paramTypesLocal);
         }
-    }
-
-    private void _MethodReceived(string method, string[] stringParams, Types[] typesArray)
-    {
-        if (method == "") return;
-
-        paramCounter = 0;
-        parameters = new object[stringParams.Length];
-
-        for (int i = 0; i < stringParams.Length; i++)
-        {
-            SetType(typesArray[i], stringParams[i]);
-        }
-
-        networkReceiver.parameters = parameters;
-        networkReceiver.SendCustomEvent(method);
-    }
-
-    private void SetType(Types type, string value)
-    {
-        string[] split;
-        switch (type)
-        {
-            case Types.Byte:
-                parameters[paramCounter] = Convert.ToByte(value);
-                break;
-            case Types.SByte:
-                parameters[paramCounter] = Convert.ToSByte(value);
-                break;
-            case Types.Int32:
-                parameters[paramCounter] = Convert.ToInt32(value);
-                break;
-            case Types.UInt32:
-                parameters[paramCounter] = Convert.ToUInt32(value);
-                break;
-            case Types.Int64:
-                parameters[paramCounter] = Convert.ToInt64(value);
-                break;
-            case Types.UInt64:
-                parameters[paramCounter] = Convert.ToUInt64(value);
-                break;
-            case Types.Int16:
-                parameters[paramCounter] = Convert.ToInt16(value);
-                break;
-            case Types.UInt16:
-                parameters[paramCounter] = Convert.ToUInt16(value);
-                break;
-            case Types.Single:
-                parameters[paramCounter] = Convert.ToSingle(value);
-                break;
-            case Types.Double:
-                parameters[paramCounter] = Convert.ToDouble(value);
-                break;
-            case Types.String:
-                parameters[paramCounter] = value;
-                break;
-            case Types.Boolean:
-                parameters[paramCounter] = value == "T";
-                break;
-            case Types.VRCPlayerApi:
-                parameters[paramCounter] = VRCPlayerApi.GetPlayerById(Convert.ToInt32(value));
-                break;
-            case Types.Color:
-                split = value.Split('');
-                parameters[paramCounter] = new Color(Convert.ToSingle(split[0]), Convert.ToSingle(split[1]),
-                    Convert.ToSingle(split[2]), Convert.ToSingle(split[3]));
-                break;
-            case Types.Color32:
-                split = value.Split('');
-                parameters[paramCounter] = new Color32(Convert.ToByte(split[0]), Convert.ToByte(split[1]),
-                    Convert.ToByte(split[2]), Convert.ToByte(split[3]));
-                break;
-            case Types.Vector3:
-                split = value.Split('');
-                parameters[paramCounter] = new Vector3(Convert.ToSingle(split[0]), Convert.ToSingle(split[1]),
-                    Convert.ToSingle(split[2]));
-                break;
-            case Types.Quaternion:
-                split = value.Split('');
-                parameters[paramCounter] = new Quaternion(Convert.ToSingle(split[0]), Convert.ToSingle(split[1]),
-                    Convert.ToSingle(split[2]), Convert.ToSingle(split[3]));
-                break;
-            case Types.ByteA:
-                split = value.Split('');
-                byte[] byteOut = new byte[split.Length];
-                for (int i = 0; i < split.Length; i++)
-                {
-                    byteOut[i] = Convert.ToByte(split[i]);
-                }
-
-                parameters[paramCounter] = byteOut;
-                break;
-            case Types.SByteA:
-                split = value.Split('');
-                sbyte[] sbyteOut = new sbyte[split.Length];
-                for (int i = 0; i < split.Length; i++)
-                {
-                    sbyteOut[i] = Convert.ToSByte(split[i]);
-                }
-
-                parameters[paramCounter] = sbyteOut;
-                break;
-            case Types.Int32A:
-                split = value.Split('');
-                int[] intOut = new int[split.Length];
-                for (int i = 0; i < split.Length; i++)
-                {
-                    intOut[i] = Convert.ToInt32(split[i]);
-                }
-
-                parameters[paramCounter] = intOut;
-                break;
-            case Types.UInt32A:
-                split = value.Split('');
-                uint[] uintOut = new uint[split.Length];
-                for (int i = 0; i < split.Length; i++)
-                {
-                    uintOut[i] = Convert.ToUInt32(split[i]);
-                }
-
-                parameters[paramCounter] = uintOut;
-                break;
-            case Types.Int64A:
-                split = value.Split('');
-                long[] longOut = new long[split.Length];
-                for (int i = 0; i < split.Length; i++)
-                {
-                    longOut[i] = Convert.ToInt64(split[i]);
-                }
-
-                parameters[paramCounter] = longOut;
-                break;
-            case Types.UInt64A:
-                split = value.Split('');
-                ulong[] ulongOut = new ulong[split.Length];
-                for (int i = 0; i < split.Length; i++)
-                {
-                    ulongOut[i] = Convert.ToUInt64(split[i]);
-                }
-
-                parameters[paramCounter] = ulongOut;
-                break;
-            case Types.Int16A:
-                split = value.Split('');
-                short[] shortOut = new short[split.Length];
-                for (int i = 0; i < split.Length; i++)
-                {
-                    shortOut[i] = Convert.ToInt16(split[i]);
-                }
-
-                parameters[paramCounter] = shortOut;
-                break;
-            case Types.UInt16A:
-                split = value.Split('');
-                ushort[] ushortOut = new ushort[split.Length];
-                for (int i = 0; i < split.Length; i++)
-                {
-                    ushortOut[i] = Convert.ToUInt16(split[i]);
-                }
-
-                parameters[paramCounter] = ushortOut;
-                break;
-            case Types.SingleA:
-                split = value.Split('');
-                float[] floatOut = new float[split.Length];
-                for (int i = 0; i < split.Length; i++)
-                {
-                    floatOut[i] = Convert.ToSingle(split[i]);
-                }
-
-                parameters[paramCounter] = floatOut;
-                break;
-            case Types.DoubleA:
-                split = value.Split('');
-                double[] doubleOut = new Double[split.Length];
-                for (int i = 0; i < split.Length; i++)
-                {
-                    doubleOut[i] = Convert.ToDouble(split[i]);
-                }
-
-                parameters[paramCounter] = doubleOut;
-                break;
-            case Types.StringA:
-                split = value.Split('');
-                parameters[paramCounter] = split;
-                break;
-            case Types.BooleanA:
-                split = value.Split('');
-                bool[] boolOut = new bool[split.Length];
-                for (int i = 0; i < split.Length; i++)
-                {
-                    boolOut[i] = split[i] == "T";
-                }
-
-                parameters[paramCounter] = boolOut;
-                break;
-            case Types.VRCPlayerApiA:
-                split = value.Split('');
-                VRCPlayerApi[] apiOut = new VRCPlayerApi[split.Length];
-                for (int i = 0; i < split.Length; i++)
-                {
-                    apiOut[i] = VRCPlayerApi.GetPlayerById(Convert.ToInt32(split[i]));
-                }
-
-                parameters[paramCounter] = apiOut;
-                break;
-        }
-
-        paramCounter++;
-    }
-
-
-    //TODO [UdonSynced] private int largestKnown;
-    private int localSentOut;
-    [UdonSynced] private int sentOutMethods;
-
-    public override void OnPreSerialization()
-    {
-        Log(
-            $"PreSerialization - {Networking.GetOwner(gameObject).displayName} - {methodName} - {localSentOut} - {sentOutMethods}");
-    }
-
-
-    public override void OnDeserialization()
-    {
-        Log(
-            $"Deserialization - {Networking.GetOwner(gameObject).displayName} - {methodName} - {localSentOut} - {sentOutMethods}");
-
-        if (localSentOut >= sentOutMethods && localSentOut != 0)
-        {
-            LogWarn("Ignoring - Local more than global");
-            localSentOut = sentOutMethods;
-            return;
-        }
-
-        localSentOut = sentOutMethods;
-
-        /* TODO
-        if (largestKnown < Networking.LocalPlayer.playerId)
-        {
-            Log("LargestKnown less than My ID");
-            return;
-        }*/
-
-        _MethodReceived(methodName, arrayParameters, paramTypes);
-    }
-
-    public override void OnPostSerialization(SerializationResult result)
-    {
-        if (!result.success)
-        {
-            LogWarn("<color=#FF0000>FAILED SERIALIZATION</color>");
-        }
-    }
-
-
-    [NonSerialized] private bool startRun;
-
-    private void OnEnable()
-    {
-        if (startRun) return;
-        startRun = true;
-        parameters = new object[0];
-        debug = networkReceiver.networkManager.debug;
-    }
-
 
     private void EnqueueMethod(string method, string[] stringParameters, Types[] types)
     {
@@ -733,11 +91,21 @@ public class NetworkedEventCaller : UdonSharpBehaviour
 
     #endregion
 }
+*/
 
 namespace Miner28.UdonUtils.Network
 {
-    public class NetworkCaller
+    [UdonBehaviourSyncMode(BehaviourSyncMode.Manual)]
+    public class NetworkedEventCaller : UdonSharpBehaviour
     {
+        [HideInInspector] public NetworkReceiver networkReceiver;
+
+        private bool _debug;
+        private bool _startRun;
+
+        private int _localSentOut;
+        [UdonSynced] private int _sentOutMethods;
+        
         #region Constants
 
         private Type[] _types =
@@ -753,6 +121,7 @@ namespace Miner28.UdonUtils.Network
             typeof(ulong),
             typeof(float),
             typeof(double),
+            typeof(decimal),
             typeof(string),
             typeof(VRCPlayerApi),
             typeof(Color),
@@ -763,6 +132,8 @@ namespace Miner28.UdonUtils.Network
             typeof(Vector3Int),
             typeof(Vector4),
             typeof(Quaternion),
+            typeof(DateTime),
+            //Arrays
             typeof(bool[]),
             typeof(byte[]),
             typeof(sbyte[]),
@@ -774,6 +145,7 @@ namespace Miner28.UdonUtils.Network
             typeof(ulong[]),
             typeof(float[]),
             typeof(double[]),
+            typeof(decimal[]),
             typeof(string[]),
             typeof(VRCPlayerApi[]),
             typeof(Color[]),
@@ -830,10 +202,10 @@ namespace Miner28.UdonUtils.Network
         private short _int16Value;
         private ushort _ushortLength;
         private ushort _uint16Value;
-        private int _int32tmp;
-        private int _int32tmp2;
-        private int _int32tmp3;
-        private int _int32tmp4;
+        private int _int32TMP;
+        private int _int32TMP2;
+        private int _int32TMP3;
+        private int _int32TMP4;
         private int _iter;
         private uint _uint32Value;
         private uint _uintTmp;
@@ -885,15 +257,50 @@ namespace Miner28.UdonUtils.Network
         
         private object[] _parameters = new object[0];
         private int bufferOffset;
-        
+
+        [UdonSynced] public string methodTarget;
         [UdonSynced] private byte[] buffer = new byte[0];
         [UdonSynced] private Types[] types = new Types[0];
         [UdonSynced] private ushort[] lengths = new ushort[0];
-        
-        
 
-        public void SendData(object[] data)
+        public override void OnPreSerialization()
         {
+            if (_debug) Log($"PreSerialization - {methodTarget} - {buffer.Length} - {types.Length} - {lengths.Length}");
+        }
+
+        public override void OnPostSerialization(SerializationResult result)
+        {
+            if (!result.success)
+            {
+                LogWarning($"Failed Serialization - {result.byteCount}");
+            }
+        }
+
+        public override void OnDeserialization()
+        {
+            if (_debug) Log($"Deserialization - {methodTarget} - {buffer.Length} - {types.Length} - {lengths.Length}");
+
+            if (string.IsNullOrEmpty(methodTarget)) return;
+
+            if (_localSentOut >= _sentOutMethods && _localSentOut != 0)
+            {
+                if (_debug) LogWarning($"Ignoring deserialization, already sent out Local: {_localSentOut} - Global: {_sentOutMethods}");
+                _localSentOut = _sentOutMethods;
+                return;
+            }
+            
+            _localSentOut = _sentOutMethods;
+
+            ReceiveData(); //Convert data from buffer to parameters
+            
+            networkReceiver.parameters = _parameters; //Set parameters to network receiver
+            networkReceiver.SendCustomEvent(methodTarget); //Send event to network receiver
+        }
+
+
+        public void _SendMethod(SyncTarget target, string method, object[] data)
+        {
+            
             int requiredLength = 0;
             if (types.Length != data.Length) types = new Types[data.Length];
             if (lengths.Length != data.Length) lengths = new ushort[data.Length];
@@ -903,36 +310,26 @@ namespace Miner28.UdonUtils.Network
                 var typeId = Array.IndexOf(_types, type);
                 if (typeId == -1) return;
 
-                var enumType = (Types)typeId;
+                var enumType = (Types) typeId;
                 types[y] = enumType;
 
                 ushort length;
                 switch (enumType)
                 {
                     case Types.Boolean:
-                        requiredLength += 1;
-                        break;
                     case Types.Byte:
-                        requiredLength += 1;
-                        break;
                     case Types.SByte:
                         requiredLength += 1;
                         break;
                     case Types.Int16:
-                        requiredLength += 2;
-                        break;
                     case Types.UInt16:
                         requiredLength += 2;
                         break;
                     case Types.Int32:
-                        requiredLength += 4;
-                        break;
                     case Types.UInt32:
                         requiredLength += 4;
                         break;
                     case Types.Int64:
-                        requiredLength += 8;
-                        break;
                     case Types.UInt64:
                         requiredLength += 8;
                         break;
@@ -946,7 +343,7 @@ namespace Miner28.UdonUtils.Network
                         requiredLength += 16;
                         break;
                     case Types.String:
-                        length = (ushort)BitConverter.GetStringSizeInBytes((string)data[y]);
+                        length = (ushort) BitConverter.GetStringSizeInBytes((string) data[y]);
                         requiredLength += length;
                         lengths[y] = length;
                         break;
@@ -960,136 +357,136 @@ namespace Miner28.UdonUtils.Network
                         requiredLength += 4;
                         break;
                     case Types.Vector2:
-                        requiredLength += 8;
-                        break;
                     case Types.Vector2Int:
                         requiredLength += 8;
                         break;
                     case Types.Vector3:
-                        requiredLength += 12;
-                        break;
                     case Types.Vector3Int:
                         requiredLength += 12;
                         break;
                     case Types.Vector4:
-                        requiredLength += 16;
-                        break;
                     case Types.Quaternion:
                         requiredLength += 16;
                         break;
+                    case Types.DateTime:
+                        requiredLength += 8;
+                        break;
+                    //Arrays
                     case Types.BooleanA:
-                        length = (ushort)((bool[])data[y]).Length;
+                        length = (ushort) ((bool[]) data[y]).Length;
                         requiredLength += length;
                         lengths[y] = length;
                         break;
                     case Types.ByteA:
-                        length = (ushort)((byte[])data[y]).Length;
+                        length = (ushort) ((byte[]) data[y]).Length;
                         requiredLength += length;
                         lengths[y] = length;
                         break;
                     case Types.SByteA:
-                        length = (ushort)((sbyte[])data[y]).Length;
+                        length = (ushort) ((sbyte[]) data[y]).Length;
                         requiredLength += length;
                         lengths[y] = length;
                         break;
                     case Types.Int16A:
-                        length = (ushort)((short[])data[y]).Length;
+                        length = (ushort) ((short[]) data[y]).Length;
                         requiredLength += length * 2;
                         lengths[y] = length;
                         break;
                     case Types.UInt16A:
-                        length = (ushort)((ushort[])data[y]).Length;
+                        length = (ushort) ((ushort[]) data[y]).Length;
                         requiredLength += length * 2;
                         lengths[y] = length;
                         break;
                     case Types.Int32A:
-                        length = (ushort)((int[])data[y]).Length;
+                        length = (ushort) ((int[]) data[y]).Length;
                         requiredLength += length * 4;
                         lengths[y] = length;
                         break;
                     case Types.UInt32A:
-                        length = (ushort)((uint[])data[y]).Length;
+                        length = (ushort) ((uint[]) data[y]).Length;
                         requiredLength += length * 4;
                         lengths[y] = length;
                         break;
                     case Types.Int64A:
-                        length = (ushort)((long[])data[y]).Length;
+                        length = (ushort) ((long[]) data[y]).Length;
                         requiredLength += length * 8;
                         lengths[y] = length;
                         break;
                     case Types.UInt64A:
-                        length = (ushort)((ulong[])data[y]).Length;
+                        length = (ushort) ((ulong[]) data[y]).Length;
                         requiredLength += length * 8;
                         lengths[y] = length;
                         break;
                     case Types.SingleA:
-                        length = (ushort)((float[])data[y]).Length;
+                        length = (ushort) ((float[]) data[y]).Length;
                         requiredLength += length * 4;
                         lengths[y] = length;
                         break;
                     case Types.DoubleA:
-                        length = (ushort)((double[])data[y]).Length;
+                        length = (ushort) ((double[]) data[y]).Length;
                         requiredLength += length * 8;
                         lengths[y] = length;
                         break;
                     case Types.DecimalA:
-                        length = (ushort)((decimal[])data[y]).Length;
+                        length = (ushort) ((decimal[]) data[y]).Length;
                         requiredLength += length * 16;
                         lengths[y] = length;
                         break;
                     case Types.StringA:
-                        _stringA = (string[])data[y];
-                        length = (ushort)(_stringA.Length - 1);
+                    {
+                        _stringA = (string[]) data[y];
+                        length = (ushort) (_stringA.Length - 1);
                         for (int i = 0; i < _stringA.Length; i++)
                         {
-                            length += (ushort)BitConverter.GetStringSizeInBytes(_stringA[i]);
+                            length += (ushort) BitConverter.GetStringSizeInBytes(_stringA[i]);
                         }
 
                         requiredLength += length;
                         lengths[y] = length;
                         break;
+                    }
                     case Types.VRCPlayerApiA:
-                        length = (ushort)((VRCPlayerApi[])data[y]).Length;
+                        length = (ushort) ((VRCPlayerApi[]) data[y]).Length;
                         requiredLength += length * 4;
                         lengths[y] = length;
                         break;
                     case Types.ColorA:
-                        length = (ushort)((Color[])data[y]).Length;
+                        length = (ushort) ((Color[]) data[y]).Length;
                         requiredLength += length * 16;
                         lengths[y] = length;
                         break;
                     case Types.Color32A:
-                        length = (ushort)((Color32[])data[y]).Length;
+                        length = (ushort) ((Color32[]) data[y]).Length;
                         requiredLength += length * 4;
                         lengths[y] = length;
                         break;
                     case Types.Vector2A:
-                        length = (ushort)((Vector2[])data[y]).Length;
+                        length = (ushort) ((Vector2[]) data[y]).Length;
                         requiredLength += length * 8;
                         lengths[y] = length;
                         break;
                     case Types.Vector2IntA:
-                        length = (ushort)((Vector2Int[])data[y]).Length;
+                        length = (ushort) ((Vector2Int[]) data[y]).Length;
                         requiredLength += length * 8;
                         lengths[y] = length;
                         break;
                     case Types.Vector3A:
-                        length = (ushort)((Vector3[])data[y]).Length;
+                        length = (ushort) ((Vector3[]) data[y]).Length;
                         requiredLength += length * 12;
                         lengths[y] = length;
                         break;
                     case Types.Vector3IntA:
-                        length = (ushort)((Vector3Int[])data[y]).Length;
+                        length = (ushort) ((Vector3Int[]) data[y]).Length;
                         requiredLength += length * 12;
                         lengths[y] = length;
                         break;
                     case Types.Vector4A:
-                        length = (ushort)((Vector4[])data[y]).Length;
+                        length = (ushort) ((Vector4[]) data[y]).Length;
                         requiredLength += length * 16;
                         lengths[y] = length;
                         break;
                     case Types.QuaternionA:
-                        length = (ushort)((Quaternion[])data[y]).Length;
+                        length = (ushort) ((Quaternion[]) data[y]).Length;
                         requiredLength += length * 16;
                         lengths[y] = length;
                         break;
@@ -1106,74 +503,74 @@ namespace Miner28.UdonUtils.Network
                 switch (enumType)
                 {
                     case Types.Boolean:
-                        buffer[bufferOffset] = (bool)data[_iter] ? _byteOne : _byteZero;
+                        buffer[bufferOffset] = (bool) data[_iter] ? _byteOne : _byteZero;
                         bufferOffset++;
                         break;
                     case Types.Byte:
-                        buffer[bufferOffset] = (byte)data[_iter];
+                        buffer[bufferOffset] = (byte) data[_iter];
                         bufferOffset++;
                         break;
                     case Types.SByte:
-                        _sbyteValue = (sbyte)data[_iter];
-                        buffer[bufferOffset] = (byte)(_sbyteValue < 0 ? (_sbyteValue + _0xFF) : _sbyteValue);
+                        _sbyteValue = (sbyte) data[_iter];
+                        buffer[bufferOffset] = (byte) (_sbyteValue < 0 ? (_sbyteValue + _0xFF) : _sbyteValue);
                         bufferOffset++;
                         break;
                     case Types.Int16:
-                        _int16Value = (short)data[_iter];
-                        _int32tmp = _int16Value < 0 ? (_int16Value + 0xFFFF) : _int16Value;
-                        buffer[bufferOffset] = (byte)(_int32tmp >> Bit8);
-                        buffer[bufferOffset + 1] = (byte)(_int32tmp & 0xFF);
+                        _int16Value = (short) data[_iter];
+                        _int32TMP = _int16Value < 0 ? (_int16Value + 0xFFFF) : _int16Value;
+                        buffer[bufferOffset] = (byte) (_int32TMP >> Bit8);
+                        buffer[bufferOffset + 1] = (byte) (_int32TMP & 0xFF);
                         bufferOffset += 2;
                         break;
                     case Types.UInt16:
-                        _uint16Value = (ushort)data[_iter];
-                        buffer[bufferOffset] = (byte)((_uint16Value >> Bit8));
-                        buffer[bufferOffset + 1] = (byte)(_uint16Value & 0xFF);
+                        _uint16Value = (ushort) data[_iter];
+                        buffer[bufferOffset] = (byte) ((_uint16Value >> Bit8));
+                        buffer[bufferOffset + 1] = (byte) (_uint16Value & 0xFF);
                         bufferOffset += 2;
                         break;
                     case Types.Int32:
-                        _int32tmp2 = (int)data[_iter];
-                        buffer[bufferOffset] = (byte)((_int32tmp2 >> Bit24) & 0xFF);
-                        buffer[bufferOffset + 1] = (byte)((_int32tmp2 >> Bit16) & 0xFF);
-                        buffer[bufferOffset + 2] = (byte)((_int32tmp2 >> Bit8) & 0xFF);
-                        buffer[bufferOffset + 3] = (byte)(_int32tmp2 & 0xFF);
+                        _int32TMP2 = (int) data[_iter];
+                        buffer[bufferOffset] = (byte) ((_int32TMP2 >> Bit24) & 0xFF);
+                        buffer[bufferOffset + 1] = (byte) ((_int32TMP2 >> Bit16) & 0xFF);
+                        buffer[bufferOffset + 2] = (byte) ((_int32TMP2 >> Bit8) & 0xFF);
+                        buffer[bufferOffset + 3] = (byte) (_int32TMP2 & 0xFF);
                         bufferOffset += 4;
                         break;
                     case Types.UInt32:
-                        _uint32Value = (uint)data[_iter];
-                        buffer[bufferOffset] = (byte)((_uint32Value >> Bit24) & 255u);
-                        buffer[bufferOffset + 1] = (byte)((_uint32Value >> Bit16) & 255u);
-                        buffer[bufferOffset + 2] = (byte)((_uint32Value >> Bit8) & 255u);
-                        buffer[bufferOffset + 3] = (byte)(_uint32Value & 255u);
+                        _uint32Value = (uint) data[_iter];
+                        buffer[bufferOffset] = (byte) ((_uint32Value >> Bit24) & 255u);
+                        buffer[bufferOffset + 1] = (byte) ((_uint32Value >> Bit16) & 255u);
+                        buffer[bufferOffset + 2] = (byte) ((_uint32Value >> Bit8) & 255u);
+                        buffer[bufferOffset + 3] = (byte) (_uint32Value & 255u);
                         bufferOffset += 4;
                         break;
                     case Types.Int64:
-                        _int64Value = (long)data[_iter];
-                        buffer[bufferOffset] = (byte)((_int64Value >> Bit56) & 0xFF);
-                        buffer[bufferOffset + 1] = (byte)((_int64Value >> Bit48) & 0xFF);
-                        buffer[bufferOffset + 2] = (byte)((_int64Value >> Bit40) & 0xFF);
-                        buffer[bufferOffset + 3] = (byte)((_int64Value >> Bit32) & 0xFF);
-                        buffer[bufferOffset + 4] = (byte)((_int64Value >> Bit24) & 0xFF);
-                        buffer[bufferOffset + 5] = (byte)((_int64Value >> Bit16) & 0xFF);
-                        buffer[bufferOffset + 6] = (byte)((_int64Value >> Bit8) & 0xFF);
-                        buffer[bufferOffset + 7] = (byte)(_int64Value & 0xFF);
+                        _int64Value = (long) data[_iter];
+                        buffer[bufferOffset] = (byte) ((_int64Value >> Bit56) & 0xFF);
+                        buffer[bufferOffset + 1] = (byte) ((_int64Value >> Bit48) & 0xFF);
+                        buffer[bufferOffset + 2] = (byte) ((_int64Value >> Bit40) & 0xFF);
+                        buffer[bufferOffset + 3] = (byte) ((_int64Value >> Bit32) & 0xFF);
+                        buffer[bufferOffset + 4] = (byte) ((_int64Value >> Bit24) & 0xFF);
+                        buffer[bufferOffset + 5] = (byte) ((_int64Value >> Bit16) & 0xFF);
+                        buffer[bufferOffset + 6] = (byte) ((_int64Value >> Bit8) & 0xFF);
+                        buffer[bufferOffset + 7] = (byte) (_int64Value & 0xFF);
                         bufferOffset += 8;
                         break;
                     case Types.UInt64:
-                        _uint64Value = (ulong)data[_iter];
-                        buffer[bufferOffset] = (byte)((_uint64Value >> Bit56) & 255ul);
-                        buffer[bufferOffset + 1] = (byte)((_uint64Value >> Bit48) & 255ul);
-                        buffer[bufferOffset + 2] = (byte)((_uint64Value >> Bit40) & 255ul);
-                        buffer[bufferOffset + 3] = (byte)((_uint64Value >> Bit32) & 255ul);
-                        buffer[bufferOffset + 4] = (byte)((_uint64Value >> Bit24) & 255ul);
-                        buffer[bufferOffset + 5] = (byte)((_uint64Value >> Bit16) & 255ul);
-                        buffer[bufferOffset + 6] = (byte)((_uint64Value >> Bit8) & 255ul);
-                        buffer[bufferOffset + 7] = (byte)(_uint64Value & 255ul);
+                        _uint64Value = (ulong) data[_iter];
+                        buffer[bufferOffset] = (byte) ((_uint64Value >> Bit56) & 255ul);
+                        buffer[bufferOffset + 1] = (byte) ((_uint64Value >> Bit48) & 255ul);
+                        buffer[bufferOffset + 2] = (byte) ((_uint64Value >> Bit40) & 255ul);
+                        buffer[bufferOffset + 3] = (byte) ((_uint64Value >> Bit32) & 255ul);
+                        buffer[bufferOffset + 4] = (byte) ((_uint64Value >> Bit24) & 255ul);
+                        buffer[bufferOffset + 5] = (byte) ((_uint64Value >> Bit16) & 255ul);
+                        buffer[bufferOffset + 6] = (byte) ((_uint64Value >> Bit8) & 255ul);
+                        buffer[bufferOffset + 7] = (byte) (_uint64Value & 255ul);
                         bufferOffset += 8;
                         break;
-
                     case Types.Single:
-                        _singleValue = (float)data[_iter];
+                    {
+                        _singleValue = (float) data[_iter];
                         _uintTmp = 0;
                         if (float.IsNaN(_singleValue))
                         {
@@ -1223,14 +620,16 @@ namespace Miner28.UdonUtils.Network
                             _uintTmp |= Convert.ToUInt32(_singleValue * 0x800000) & FloatFracMask;
                         }
 
-                        buffer[bufferOffset] = (byte)((_uintTmp >> Bit24) & 255u);
-                        buffer[bufferOffset + 1] = (byte)((_uintTmp >> Bit16) & 255u);
-                        buffer[bufferOffset + 2] = (byte)((_uintTmp >> Bit8) & 255u);
-                        buffer[bufferOffset + 3] = (byte)(_uintTmp & 255u);
+                        buffer[bufferOffset] = (byte) ((_uintTmp >> Bit24) & 255u);
+                        buffer[bufferOffset + 1] = (byte) ((_uintTmp >> Bit16) & 255u);
+                        buffer[bufferOffset + 2] = (byte) ((_uintTmp >> Bit8) & 255u);
+                        buffer[bufferOffset + 3] = (byte) (_uintTmp & 255u);
                         bufferOffset += 4;
                         break;
+                    }
                     case Types.Double:
-                        _doubleValue = (double)data[_iter];
+                    {
+                        _doubleValue = (double) data[_iter];
                         ulong doubleTmp = 0;
                         if (double.IsNaN(_doubleValue))
                         {
@@ -1280,93 +679,98 @@ namespace Miner28.UdonUtils.Network
                             doubleTmp |= Convert.ToUInt64(_doubleValue * 0x10000000000000) & DoubleFracMask;
                         }
 
-                        buffer[bufferOffset] = (byte)((doubleTmp >> Bit56) & 255ul);
-                        buffer[bufferOffset + 1] = (byte)((doubleTmp >> Bit48) & 255ul);
-                        buffer[bufferOffset + 2] = (byte)((doubleTmp >> Bit40) & 255ul);
-                        buffer[bufferOffset + 3] = (byte)((doubleTmp >> Bit32) & 255ul);
-                        buffer[bufferOffset + 4] = (byte)((doubleTmp >> Bit24) & 255ul);
-                        buffer[bufferOffset + 5] = (byte)((doubleTmp >> Bit16) & 255ul);
-                        buffer[bufferOffset + 6] = (byte)((doubleTmp >> Bit8) & 255ul);
-                        buffer[bufferOffset + 7] = (byte)(doubleTmp & 255ul);
+                        buffer[bufferOffset] = (byte) ((doubleTmp >> Bit56) & 255ul);
+                        buffer[bufferOffset + 1] = (byte) ((doubleTmp >> Bit48) & 255ul);
+                        buffer[bufferOffset + 2] = (byte) ((doubleTmp >> Bit40) & 255ul);
+                        buffer[bufferOffset + 3] = (byte) ((doubleTmp >> Bit32) & 255ul);
+                        buffer[bufferOffset + 4] = (byte) ((doubleTmp >> Bit24) & 255ul);
+                        buffer[bufferOffset + 5] = (byte) ((doubleTmp >> Bit16) & 255ul);
+                        buffer[bufferOffset + 6] = (byte) ((doubleTmp >> Bit8) & 255ul);
+                        buffer[bufferOffset + 7] = (byte) (doubleTmp & 255ul);
                         bufferOffset += 8;
                         break;
+                    }
                     case Types.Decimal:
-                        _int32A = Decimal.GetBits((decimal)data[_iter]);
-                        buffer[bufferOffset] = (byte)((_tempBytes[0] >> Bit24) & _0xFF);
-                        buffer[bufferOffset + 1] = (byte)((_tempBytes[0] >> Bit16) & _0xFF);
-                        buffer[bufferOffset + 2] = (byte)((_tempBytes[0] >> Bit8) & _0xFF);
-                        buffer[bufferOffset + 3] = (byte)(_tempBytes[0] & _0xFF);
+                        _int32A = Decimal.GetBits((decimal) data[_iter]);
 
-                        buffer[bufferOffset + 4] = (byte)((_tempBytes[1] >> Bit24) & _0xFF);
-                        buffer[bufferOffset + 5] = (byte)((_tempBytes[1] >> Bit16) & _0xFF);
-                        buffer[bufferOffset + 6] = (byte)((_tempBytes[1] >> Bit8) & _0xFF);
-                        buffer[bufferOffset + 7] = (byte)(_tempBytes[1] & _0xFF);
+                        buffer[bufferOffset] = (byte) ((_tempBytes[0] >> Bit24) & _0xFF);
+                        buffer[bufferOffset + 1] = (byte) ((_tempBytes[0] >> Bit16) & _0xFF);
+                        buffer[bufferOffset + 2] = (byte) ((_tempBytes[0] >> Bit8) & _0xFF);
+                        buffer[bufferOffset + 3] = (byte) (_tempBytes[0] & _0xFF);
 
-                        buffer[bufferOffset + 8] = (byte)((_tempBytes[2] >> Bit24) & _0xFF);
-                        buffer[bufferOffset + 9] = (byte)((_tempBytes[2] >> Bit16) & _0xFF);
-                        buffer[bufferOffset + 10] = (byte)((_tempBytes[2] >> Bit8) & _0xFF);
-                        buffer[bufferOffset + 11] = (byte)(_tempBytes[2] & _0xFF);
+                        buffer[bufferOffset + 4] = (byte) ((_tempBytes[1] >> Bit24) & _0xFF);
+                        buffer[bufferOffset + 5] = (byte) ((_tempBytes[1] >> Bit16) & _0xFF);
+                        buffer[bufferOffset + 6] = (byte) ((_tempBytes[1] >> Bit8) & _0xFF);
+                        buffer[bufferOffset + 7] = (byte) (_tempBytes[1] & _0xFF);
 
-                        buffer[bufferOffset + 12] = (byte)((_tempBytes[3] >> Bit24) & _0xFF);
-                        buffer[bufferOffset + 13] = (byte)((_tempBytes[3] >> Bit16) & _0xFF);
-                        buffer[bufferOffset + 14] = (byte)((_tempBytes[3] >> Bit8) & _0xFF);
-                        buffer[bufferOffset + 15] = (byte)(_tempBytes[3] & _0xFF);
+                        buffer[bufferOffset + 8] = (byte) ((_tempBytes[2] >> Bit24) & _0xFF);
+                        buffer[bufferOffset + 9] = (byte) ((_tempBytes[2] >> Bit16) & _0xFF);
+                        buffer[bufferOffset + 10] = (byte) ((_tempBytes[2] >> Bit8) & _0xFF);
+                        buffer[bufferOffset + 11] = (byte) (_tempBytes[2] & _0xFF);
+
+                        buffer[bufferOffset + 12] = (byte) ((_tempBytes[3] >> Bit24) & _0xFF);
+                        buffer[bufferOffset + 13] = (byte) ((_tempBytes[3] >> Bit16) & _0xFF);
+                        buffer[bufferOffset + 14] = (byte) ((_tempBytes[3] >> Bit8) & _0xFF);
+                        buffer[bufferOffset + 15] = (byte) (_tempBytes[3] & _0xFF);
                         bufferOffset += 16;
                         break;
                     case Types.String:
-                        _stringData = (string)data[_iter];
-                        _int32tmp = _stringData.Length;
+                    {
+                        _stringData = (string) data[_iter];
+                        _int32TMP = _stringData.Length;
 
-                        for (int i = 0; i < _int32tmp; i++)
+                        for (int i = 0; i < _int32TMP; i++)
                         {
                             int value = char.ConvertToUtf32(_stringData, i);
                             if (value < 0x80)
                             {
-                                buffer[bufferOffset++] = (byte)value;
+                                buffer[bufferOffset++] = (byte) value;
                             }
                             else if (value < 0x0800)
                             {
-                                buffer[bufferOffset++] = (byte)(value >> 6 | 0xC0);
-                                buffer[bufferOffset++] = (byte)(value & 0x3F | 0x80);
+                                buffer[bufferOffset++] = (byte) (value >> 6 | 0xC0);
+                                buffer[bufferOffset++] = (byte) (value & 0x3F | 0x80);
                             }
                             else if (value < 0x010000)
                             {
-                                buffer[bufferOffset++] = (byte)(value >> 12 | 0xE0);
-                                buffer[bufferOffset++] = (byte)((value >> 6) & 0x3F | 0x80);
-                                buffer[bufferOffset++] = (byte)(value & 0x3F | 0x80);
+                                buffer[bufferOffset++] = (byte) (value >> 12 | 0xE0);
+                                buffer[bufferOffset++] = (byte) ((value >> 6) & 0x3F | 0x80);
+                                buffer[bufferOffset++] = (byte) (value & 0x3F | 0x80);
                             }
                             else
                             {
-                                buffer[bufferOffset++] = (byte)(value >> 18 | 0xF0);
-                                buffer[bufferOffset++] = (byte)((value >> 12) & 0x3F | 0x80);
-                                buffer[bufferOffset++] = (byte)((value >> 6) & 0x3F | 0x80);
-                                buffer[bufferOffset++] = (byte)(value & 0x3F | 0x80);
+                                buffer[bufferOffset++] = (byte) (value >> 18 | 0xF0);
+                                buffer[bufferOffset++] = (byte) ((value >> 12) & 0x3F | 0x80);
+                                buffer[bufferOffset++] = (byte) ((value >> 6) & 0x3F | 0x80);
+                                buffer[bufferOffset++] = (byte) (value & 0x3F | 0x80);
                             }
 
                             if (char.IsSurrogate(_stringData, i)) i++;
                         }
 
                         break;
-
+                    }
                     case Types.VRCPlayerApi:
-                        _player = (VRCPlayerApi)data[_iter];
+                    {
+                        _player = (VRCPlayerApi) data[_iter];
                         if (_player == null)
                         {
                             bufferOffset += 4;
                         }
                         else
                         {
-                            _int32tmp = _player.playerId;
-                            buffer[bufferOffset] = (byte)((_int32tmp >> Bit24) & _0xFF);
-                            buffer[bufferOffset + 1] = (byte)((_int32tmp >> Bit16) & _0xFF);
-                            buffer[bufferOffset + 2] = (byte)((_int32tmp >> Bit8) & _0xFF);
-                            buffer[bufferOffset + 3] = (byte)(_int32tmp & _0xFF);
+                            _int32TMP = _player.playerId;
+                            buffer[bufferOffset] = (byte) ((_int32TMP >> Bit24) & _0xFF);
+                            buffer[bufferOffset + 1] = (byte) ((_int32TMP >> Bit16) & _0xFF);
+                            buffer[bufferOffset + 2] = (byte) ((_int32TMP >> Bit8) & _0xFF);
+                            buffer[bufferOffset + 3] = (byte) (_int32TMP & _0xFF);
                             bufferOffset += 4;
                         }
 
                         break;
+                    }
                     case Types.Color:
-                        _color = (Color)data[_iter];
+                        _color = (Color) data[_iter];
                         _tempBytes = BitConverter.GetBytes(_color.r);
                         Array.Copy(_tempBytes, 0, buffer, bufferOffset, 4);
                         _tempBytes = BitConverter.GetBytes(_color.g);
@@ -1378,7 +782,7 @@ namespace Miner28.UdonUtils.Network
                         bufferOffset += 16;
                         break;
                     case Types.Color32:
-                        _color32 = (Color32)data[_iter];
+                        _color32 = (Color32) data[_iter];
                         buffer[bufferOffset] = _color32.r;
                         buffer[bufferOffset + 1] = _color32.g;
                         buffer[bufferOffset + 2] = _color32.b;
@@ -1386,7 +790,7 @@ namespace Miner28.UdonUtils.Network
                         bufferOffset += 4;
                         break;
                     case Types.Vector2:
-                        _vector2 = (Vector2)data[_iter];
+                        _vector2 = (Vector2) data[_iter];
                         _tempBytes = BitConverter.GetBytes(_vector2.x);
                         Array.Copy(_tempBytes, 0, buffer, bufferOffset, 4);
                         _tempBytes = BitConverter.GetBytes(_vector2.y);
@@ -1394,7 +798,7 @@ namespace Miner28.UdonUtils.Network
                         bufferOffset += 8;
                         break;
                     case Types.Vector2Int:
-                        _vector2Int = (Vector2Int)data[_iter];
+                        _vector2Int = (Vector2Int) data[_iter];
                         _tempBytes = BitConverter.GetBytes(_vector2Int.x);
                         Array.Copy(_tempBytes, 0, buffer, bufferOffset, 4);
                         _tempBytes = BitConverter.GetBytes(_vector2Int.y);
@@ -1402,7 +806,7 @@ namespace Miner28.UdonUtils.Network
                         bufferOffset += 8;
                         break;
                     case Types.Vector3:
-                        _vector3 = (Vector3)data[_iter];
+                        _vector3 = (Vector3) data[_iter];
 
                         _tempBytes = BitConverter.GetBytes(_vector3.x);
                         Array.Copy(_tempBytes, 0, buffer, bufferOffset, 4);
@@ -1413,7 +817,7 @@ namespace Miner28.UdonUtils.Network
                         bufferOffset += 12;
                         break;
                     case Types.Vector3Int:
-                        _vector3Int = (Vector3Int)data[_iter];
+                        _vector3Int = (Vector3Int) data[_iter];
                         _tempBytes = BitConverter.GetBytes(_vector3Int.x);
                         Array.Copy(_tempBytes, 0, buffer, bufferOffset, 4);
                         _tempBytes = BitConverter.GetBytes(_vector3Int.y);
@@ -1423,7 +827,7 @@ namespace Miner28.UdonUtils.Network
                         bufferOffset += 12;
                         break;
                     case Types.Vector4:
-                        _vector4 = (Vector4)data[_iter];
+                        _vector4 = (Vector4) data[_iter];
                         _tempBytes = BitConverter.GetBytes(_vector4.x);
                         Array.Copy(_tempBytes, 0, buffer, bufferOffset, 4);
                         _tempBytes = BitConverter.GetBytes(_vector4.y);
@@ -1435,7 +839,7 @@ namespace Miner28.UdonUtils.Network
                         bufferOffset += 16;
                         break;
                     case Types.Quaternion:
-                        _quaternion = (Quaternion)data[_iter];
+                        _quaternion = (Quaternion) data[_iter];
                         _tempBytes = BitConverter.GetBytes(_quaternion.x);
                         Array.Copy(_tempBytes, 0, buffer, bufferOffset, 4);
                         _tempBytes = BitConverter.GetBytes(_quaternion.y);
@@ -1446,8 +850,16 @@ namespace Miner28.UdonUtils.Network
                         Array.Copy(_tempBytes, 0, buffer, bufferOffset + 12, 4);
                         bufferOffset += 16;
                         break;
+                    case Types.DateTime:
+                        _int64Value = ((DateTime) data[_iter]).ToBinary();
+                        _tempBytes = BitConverter.GetBytes(_int64Value);
+                        Array.Copy(_tempBytes, 0, buffer, bufferOffset, 8);
+                        bufferOffset += 8;
+                        break;
+                    //Arrays
                     case Types.BooleanA:
-                        _boolA = (bool[])data[_iter];
+                    {
+                        _boolA = (bool[]) data[_iter];
                         for (int j = 0; j < _boolA.Length; j++)
                         {
                             buffer[bufferOffset + j] = _boolA[j] ? _byteOne : _byteZero;
@@ -1455,113 +867,127 @@ namespace Miner28.UdonUtils.Network
 
                         bufferOffset += _boolA.Length;
                         break;
+                    }
                     case Types.ByteA:
-                        _byteA = (byte[])data[_iter];
+                        _byteA = (byte[]) data[_iter];
                         Array.Copy(_byteA, 0, buffer, bufferOffset, _byteA.Length);
                         bufferOffset += _byteA.Length;
                         break;
                     case Types.SByteA:
-                        _sbyteA = (sbyte[])data[_iter];
+                    {
+                        _sbyteA = (sbyte[]) data[_iter];
                         for (int j = 0; j < _sbyteA.Length; j++)
                         {
                             _sbyteValue = _sbyteA[j];
-                            buffer[bufferOffset + j] = (byte)(_sbyteValue < 0 ? (_sbyteValue + 0xFFFF) : _sbyteValue);
+                            buffer[bufferOffset + j] = (byte) (_sbyteValue < 0 ? (_sbyteValue + 0xFFFF) : _sbyteValue);
                         }
 
                         bufferOffset += _sbyteA.Length;
                         break;
+                    }
                     case Types.Int16A:
-                        _int16A = (short[])data[_iter];
+                    {
+                        _int16A = (short[]) data[_iter];
                         for (int j = 0; j < _int16A.Length; j++)
                         {
-                            _int32tmp = _int16A[j] < 0 ? (_int16A[j] + 0xFFFF) : _int16A[j];
-                            buffer[bufferOffset] = (byte)((_int32tmp >> Bit8) & _0xFF);
-                            buffer[bufferOffset + 1] = (byte)(_int32tmp & _0xFF);
+                            _int32TMP = _int16A[j] < 0 ? (_int16A[j] + 0xFFFF) : _int16A[j];
+                            buffer[bufferOffset] = (byte) ((_int32TMP >> Bit8) & _0xFF);
+                            buffer[bufferOffset + 1] = (byte) (_int32TMP & _0xFF);
                             bufferOffset += 2;
                         }
 
                         bufferOffset += _int16A.Length * 2;
                         break;
+                    }
                     case Types.UInt16A:
-                        _uint16A = (ushort[])data[_iter];
+                    {
+                        _uint16A = (ushort[]) data[_iter];
                         for (int j = 0; j < _uint16A.Length; j++)
                         {
                             _uint16Value = _uint16A[j];
-                            buffer[bufferOffset] = (byte)((_uint16Value >> Bit8) & 255u);
-                            buffer[bufferOffset + 1] = (byte)(_uint16Value & 255u);
+                            buffer[bufferOffset] = (byte) ((_uint16Value >> Bit8) & 255u);
+                            buffer[bufferOffset + 1] = (byte) (_uint16Value & 255u);
                             bufferOffset += 2;
                         }
 
                         bufferOffset += _uint16A.Length * 2;
                         break;
+                    }
                     case Types.Int32A:
-                        _int32A = (int[])data[_iter];
+                    {
+                        _int32A = (int[]) data[_iter];
                         for (int j = 0; j < _int32A.Length; j++)
                         {
-                            _int32tmp2 = _int32A[j];
-                            buffer[bufferOffset] = (byte)((_int32tmp2 >> Bit24) & _0xFF);
-                            buffer[bufferOffset + 1] = (byte)((_int32tmp2 >> Bit16) & _0xFF);
-                            buffer[bufferOffset + 2] = (byte)((_int32tmp2 >> Bit8) & _0xFF);
-                            buffer[bufferOffset + 3] = (byte)(_int32tmp2 & _0xFF);
+                            _int32TMP2 = _int32A[j];
+                            buffer[bufferOffset] = (byte) ((_int32TMP2 >> Bit24) & _0xFF);
+                            buffer[bufferOffset + 1] = (byte) ((_int32TMP2 >> Bit16) & _0xFF);
+                            buffer[bufferOffset + 2] = (byte) ((_int32TMP2 >> Bit8) & _0xFF);
+                            buffer[bufferOffset + 3] = (byte) (_int32TMP2 & _0xFF);
                             bufferOffset += 4;
                         }
 
                         bufferOffset += _int32A.Length * 4;
                         break;
+                    }
                     case Types.UInt32A:
-                        _uint32A = (uint[])data[_iter];
+                    {
+                        _uint32A = (uint[]) data[_iter];
                         for (int j = 0; j < _uint32A.Length; j++)
                         {
                             _uint32Value = _uint32A[j];
-                            buffer[bufferOffset] = (byte)((_uint32Value >> Bit24) & 255u);
-                            buffer[bufferOffset + 1] = (byte)((_uint32Value >> Bit16) & 255u);
-                            buffer[bufferOffset + 2] = (byte)((_uint32Value >> Bit8) & 255u);
-                            buffer[bufferOffset + 3] = (byte)(_uint32Value & 255u);
+                            buffer[bufferOffset] = (byte) ((_uint32Value >> Bit24) & 255u);
+                            buffer[bufferOffset + 1] = (byte) ((_uint32Value >> Bit16) & 255u);
+                            buffer[bufferOffset + 2] = (byte) ((_uint32Value >> Bit8) & 255u);
+                            buffer[bufferOffset + 3] = (byte) (_uint32Value & 255u);
                             bufferOffset += 4;
                         }
 
                         bufferOffset += _uint32A.Length * 4;
-
                         break;
+                    }
                     case Types.Int64A:
-                        _int64A = (long[])data[_iter];
+                    {
+                        _int64A = (long[]) data[_iter];
                         for (int j = 0; j < _int64A.Length; j++)
                         {
                             _int64Value = _int64A[j];
-                            buffer[bufferOffset] = (byte)((_int64Value >> Bit56) & _0xFF);
-                            buffer[bufferOffset + 1] = (byte)((_int64Value >> Bit48) & _0xFF);
-                            buffer[bufferOffset + 2] = (byte)((_int64Value >> Bit40) & _0xFF);
-                            buffer[bufferOffset + 3] = (byte)((_int64Value >> Bit32) & _0xFF);
-                            buffer[bufferOffset + 4] = (byte)((_int64Value >> Bit24) & _0xFF);
-                            buffer[bufferOffset + 5] = (byte)((_int64Value >> Bit16) & _0xFF);
-                            buffer[bufferOffset + 6] = (byte)((_int64Value >> Bit8) & _0xFF);
-                            buffer[bufferOffset + 7] = (byte)(_int64Value & _0xFF);
+                            buffer[bufferOffset] = (byte) ((_int64Value >> Bit56) & _0xFF);
+                            buffer[bufferOffset + 1] = (byte) ((_int64Value >> Bit48) & _0xFF);
+                            buffer[bufferOffset + 2] = (byte) ((_int64Value >> Bit40) & _0xFF);
+                            buffer[bufferOffset + 3] = (byte) ((_int64Value >> Bit32) & _0xFF);
+                            buffer[bufferOffset + 4] = (byte) ((_int64Value >> Bit24) & _0xFF);
+                            buffer[bufferOffset + 5] = (byte) ((_int64Value >> Bit16) & _0xFF);
+                            buffer[bufferOffset + 6] = (byte) ((_int64Value >> Bit8) & _0xFF);
+                            buffer[bufferOffset + 7] = (byte) (_int64Value & _0xFF);
                             bufferOffset += 8;
                         }
 
                         bufferOffset += _int64A.Length * 8;
                         break;
+                    }
                     case Types.UInt64A:
-                        _uint64A = (ulong[])data[_iter];
+                    {
+                        _uint64A = (ulong[]) data[_iter];
                         for (int j = 0; j < _uint64A.Length; j++)
                         {
                             _uint64Value = _uint64A[j];
-                            buffer[bufferOffset] = (byte)((_uint64Value >> Bit56) & 255ul);
-                            buffer[bufferOffset + 1] = (byte)((_uint64Value >> Bit48) & 255ul);
-                            buffer[bufferOffset + 2] = (byte)((_uint64Value >> Bit40) & 255ul);
-                            buffer[bufferOffset + 3] = (byte)((_uint64Value >> Bit32) & 255ul);
-                            buffer[bufferOffset + 4] = (byte)((_uint64Value >> Bit24) & 255ul);
-                            buffer[bufferOffset + 5] = (byte)((_uint64Value >> Bit16) & 255ul);
-                            buffer[bufferOffset + 6] = (byte)((_uint64Value >> Bit8) & 255ul);
-                            buffer[bufferOffset + 7] = (byte)(_uint64Value & 255ul);
+                            buffer[bufferOffset] = (byte) ((_uint64Value >> Bit56) & 255ul);
+                            buffer[bufferOffset + 1] = (byte) ((_uint64Value >> Bit48) & 255ul);
+                            buffer[bufferOffset + 2] = (byte) ((_uint64Value >> Bit40) & 255ul);
+                            buffer[bufferOffset + 3] = (byte) ((_uint64Value >> Bit32) & 255ul);
+                            buffer[bufferOffset + 4] = (byte) ((_uint64Value >> Bit24) & 255ul);
+                            buffer[bufferOffset + 5] = (byte) ((_uint64Value >> Bit16) & 255ul);
+                            buffer[bufferOffset + 6] = (byte) ((_uint64Value >> Bit8) & 255ul);
+                            buffer[bufferOffset + 7] = (byte) (_uint64Value & 255ul);
                             bufferOffset += 8;
                         }
 
                         bufferOffset += _uint64A.Length * 8;
                         break;
-
+                    }
                     case Types.SingleA:
-                        _singleA = (float[])data[_iter];
+                    {
+                        _singleA = (float[]) data[_iter];
                         for (int j = 0; j < _singleA.Length; j++)
                         {
                             _tempBytes = BitConverter.GetBytes(_singleA[j]);
@@ -1570,8 +996,10 @@ namespace Miner28.UdonUtils.Network
 
                         bufferOffset += _singleA.Length * 4;
                         break;
+                    }
                     case Types.DoubleA:
-                        _doubleA = (double[])data[_iter];
+                    {
+                        _doubleA = (double[]) data[_iter];
                         for (int j = 0; j < _doubleA.Length; j++)
                         {
                             _tempBytes = BitConverter.GetBytes(_doubleA[j]);
@@ -1580,11 +1008,12 @@ namespace Miner28.UdonUtils.Network
 
                         bufferOffset += _doubleA.Length * 8;
                         break;
+                    }
                     case Types.DecimalA:
-
                         break;
                     case Types.StringA:
-                        _stringA = (string[])data[_iter];
+                    {
+                        _stringA = (string[]) data[_iter];
                         for (int j = 0; j < _stringA.Length; j++)
                         {
                             _tempBytes = BitConverter.GetBytes(_stringA[j]);
@@ -1598,23 +1027,26 @@ namespace Miner28.UdonUtils.Network
                         }
 
                         break;
-
+                    }
                     case Types.VRCPlayerApiA:
-                        _vrcPlayerApiA = (VRCPlayerApi[])data[_iter];
+                    {
+                        _vrcPlayerApiA = (VRCPlayerApi[]) data[_iter];
                         for (int j = 0; j < _vrcPlayerApiA.Length; j++)
                         {
-                            _int32tmp = _vrcPlayerApiA[j].playerId;
-                            buffer[bufferOffset] = (byte)((_int32tmp >> Bit24) & _0xFF);
-                            buffer[bufferOffset + 1] = (byte)((_int32tmp >> Bit16) & _0xFF);
-                            buffer[bufferOffset + 2] = (byte)((_int32tmp >> Bit8) & _0xFF);
-                            buffer[bufferOffset + 3] = (byte)(_int32tmp & _0xFF);
+                            _int32TMP = _vrcPlayerApiA[j].playerId;
+                            buffer[bufferOffset] = (byte) ((_int32TMP >> Bit24) & _0xFF);
+                            buffer[bufferOffset + 1] = (byte) ((_int32TMP >> Bit16) & _0xFF);
+                            buffer[bufferOffset + 2] = (byte) ((_int32TMP >> Bit8) & _0xFF);
+                            buffer[bufferOffset + 3] = (byte) (_int32TMP & _0xFF);
                             bufferOffset += 4;
                         }
 
                         bufferOffset += _vrcPlayerApiA.Length * 4;
                         break;
+                    }
                     case Types.ColorA:
-                        _colorA = (Color[])data[_iter];
+                    {
+                        _colorA = (Color[]) data[_iter];
                         for (int j = 0; j < _colorA.Length; j++)
                         {
                             _color = _colorA[j];
@@ -1630,8 +1062,10 @@ namespace Miner28.UdonUtils.Network
                         }
 
                         break;
+                    }
                     case Types.Color32A:
-                        _color32A = (Color32[])data[_iter];
+                    {
+                        _color32A = (Color32[]) data[_iter];
                         for (int j = 0; j < _color32A.Length; j++)
                         {
                             _color32 = _color32A[j];
@@ -1644,8 +1078,10 @@ namespace Miner28.UdonUtils.Network
 
                         bufferOffset += _color32A.Length * 4;
                         break;
+                    }
                     case Types.Vector2A:
-                        _vector2A = (Vector2[])data[_iter];
+                    {
+                        _vector2A = (Vector2[]) data[_iter];
                         for (int j = 0; j < _vector2A.Length; j++)
                         {
                             _vector2 = _vector2A[j];
@@ -1658,28 +1094,31 @@ namespace Miner28.UdonUtils.Network
 
                         bufferOffset += _vector2A.Length * 8;
                         break;
+                    }
                     case Types.Vector2IntA:
-                        _vector2IntA = (Vector2Int[])data[_iter];
+                    {
+                        _vector2IntA = (Vector2Int[]) data[_iter];
                         for (int j = 0; j < _vector2IntA.Length; j++)
                         {
                             _vector2Int = _vector2IntA[j];
-                            _int32tmp = _vector2Int.x;
-                            buffer[bufferOffset] = (byte)((_int32tmp >> Bit24) & _0xFF);
-                            buffer[bufferOffset + 1] = (byte)((_int32tmp >> Bit16) & _0xFF);
-                            buffer[bufferOffset + 2] = (byte)((_int32tmp >> Bit8) & _0xFF);
-                            buffer[bufferOffset + 3] = (byte)(_int32tmp & _0xFF);
-                            _int32tmp = _vector2Int.y;
-                            buffer[bufferOffset + 4] = (byte)((_int32tmp >> Bit24) & _0xFF);
-                            buffer[bufferOffset + 5] = (byte)((_int32tmp >> Bit16) & _0xFF);
-                            buffer[bufferOffset + 6] = (byte)((_int32tmp >> Bit8) & _0xFF);
-                            buffer[bufferOffset + 7] = (byte)(_int32tmp & _0xFF);
+                            _int32TMP = _vector2Int.x;
+                            buffer[bufferOffset] = (byte) ((_int32TMP >> Bit24) & _0xFF);
+                            buffer[bufferOffset + 1] = (byte) ((_int32TMP >> Bit16) & _0xFF);
+                            buffer[bufferOffset + 2] = (byte) ((_int32TMP >> Bit8) & _0xFF);
+                            buffer[bufferOffset + 3] = (byte) (_int32TMP & _0xFF);
+                            _int32TMP = _vector2Int.y;
+                            buffer[bufferOffset + 4] = (byte) ((_int32TMP >> Bit24) & _0xFF);
+                            buffer[bufferOffset + 5] = (byte) ((_int32TMP >> Bit16) & _0xFF);
+                            buffer[bufferOffset + 6] = (byte) ((_int32TMP >> Bit8) & _0xFF);
+                            buffer[bufferOffset + 7] = (byte) (_int32TMP & _0xFF);
                             bufferOffset += 8;
                         }
 
                         break;
-
+                    }
                     case Types.Vector3A:
-                        _vector3A = (Vector3[])data[_iter];
+                    {
+                        _vector3A = (Vector3[]) data[_iter];
                         for (int j = 0; j < _vector3A.Length; j++)
                         {
                             _vector3 = _vector3A[j];
@@ -1693,32 +1132,36 @@ namespace Miner28.UdonUtils.Network
 
                         bufferOffset += _vector3A.Length * 12;
                         break;
+                    }
                     case Types.Vector3IntA:
-                        _vector3IntA = (Vector3Int[])data[_iter];
+                    {
+                        _vector3IntA = (Vector3Int[]) data[_iter];
                         for (int j = 0; j < _vector3IntA.Length; j++)
                         {
                             _vector3Int = _vector3IntA[j];
-                            _int32tmp = _vector3Int.x;
-                            buffer[bufferOffset] = (byte)((_int32tmp >> Bit24) & _0xFF);
-                            buffer[bufferOffset + 1] = (byte)((_int32tmp >> Bit16) & _0xFF);
-                            buffer[bufferOffset + 2] = (byte)((_int32tmp >> Bit8) & _0xFF);
-                            buffer[bufferOffset + 3] = (byte)(_int32tmp & _0xFF);
-                            _int32tmp = _vector3Int.y;
-                            buffer[bufferOffset + 4] = (byte)((_int32tmp >> Bit24) & _0xFF);
-                            buffer[bufferOffset + 5] = (byte)((_int32tmp >> Bit16) & _0xFF);
-                            buffer[bufferOffset + 6] = (byte)((_int32tmp >> Bit8) & _0xFF);
-                            buffer[bufferOffset + 7] = (byte)(_int32tmp & _0xFF);
-                            _int32tmp = _vector3Int.z;
-                            buffer[bufferOffset + 8] = (byte)((_int32tmp >> Bit24) & _0xFF);
-                            buffer[bufferOffset + 9] = (byte)((_int32tmp >> Bit16) & _0xFF);
-                            buffer[bufferOffset + 10] = (byte)((_int32tmp >> Bit8) & _0xFF);
-                            buffer[bufferOffset + 11] = (byte)(_int32tmp & _0xFF);
+                            _int32TMP = _vector3Int.x;
+                            buffer[bufferOffset] = (byte) ((_int32TMP >> Bit24) & _0xFF);
+                            buffer[bufferOffset + 1] = (byte) ((_int32TMP >> Bit16) & _0xFF);
+                            buffer[bufferOffset + 2] = (byte) ((_int32TMP >> Bit8) & _0xFF);
+                            buffer[bufferOffset + 3] = (byte) (_int32TMP & _0xFF);
+                            _int32TMP = _vector3Int.y;
+                            buffer[bufferOffset + 4] = (byte) ((_int32TMP >> Bit24) & _0xFF);
+                            buffer[bufferOffset + 5] = (byte) ((_int32TMP >> Bit16) & _0xFF);
+                            buffer[bufferOffset + 6] = (byte) ((_int32TMP >> Bit8) & _0xFF);
+                            buffer[bufferOffset + 7] = (byte) (_int32TMP & _0xFF);
+                            _int32TMP = _vector3Int.z;
+                            buffer[bufferOffset + 8] = (byte) ((_int32TMP >> Bit24) & _0xFF);
+                            buffer[bufferOffset + 9] = (byte) ((_int32TMP >> Bit16) & _0xFF);
+                            buffer[bufferOffset + 10] = (byte) ((_int32TMP >> Bit8) & _0xFF);
+                            buffer[bufferOffset + 11] = (byte) (_int32TMP & _0xFF);
                             bufferOffset += 12;
                         }
 
                         break;
+                    }
                     case Types.Vector4A:
-                        _vector4A = (Vector4[])data[_iter];
+                    {
+                        _vector4A = (Vector4[]) data[_iter];
                         for (int j = 0; j < _vector4A.Length; j++)
                         {
                             _vector4 = _vector4A[j];
@@ -1734,8 +1177,10 @@ namespace Miner28.UdonUtils.Network
                         }
 
                         break;
+                    }
                     case Types.QuaternionA:
-                        _quaternionA = (Quaternion[])data[_iter];
+                    {
+                        _quaternionA = (Quaternion[]) data[_iter];
                         for (int j = 0; j < _quaternionA.Length; j++)
                         {
                             _quaternion = _quaternionA[j];
@@ -1751,13 +1196,23 @@ namespace Miner28.UdonUtils.Network
 
                         bufferOffset += _quaternionA.Length * 16;
                         break;
+                    }
                 }
             }
-            
-            //TODO SEND
+
+            //Locally receive the method without going through conversions
+            if (target != SyncTarget.Others)
+            {
+                networkReceiver.parameters = data;
+                networkReceiver.SendCustomEvent(method);
+            }
+
+            methodTarget = method;
+            _sentOutMethods++;
+            RequestSerialization();
         }
 
-        public void ReceiveData()
+        private void ReceiveData()
         {
             if (_parameters.Length != types.Length)
             {
@@ -1781,20 +1236,24 @@ namespace Miner28.UdonUtils.Network
                         bufferOffset++;
                         break;
                     case Types.SByte:
-                        _int32tmp = buffer[bufferOffset];
-                        if (_int32tmp >= 0x80) _int32tmp -= _0xFF;
-                        _parameters[_iter] = Convert.ToSByte(_int32tmp);
+                    {
+                        _int32TMP = buffer[bufferOffset];
+                        if (_int32TMP >= 0x80) _int32TMP -= _0xFF;
+                        _parameters[_iter] = Convert.ToSByte(_int32TMP);
                         bufferOffset++;
                         break;
+                    }
                     case Types.Int16:
-                        _int32tmp = (buffer[bufferOffset] << Bit8) | buffer[bufferOffset + 1];
-                        if (_int32tmp >= 0x8000) _int32tmp -= _0xFFFF;
-                        _parameters[_iter] = Convert.ToInt16(_int32tmp);
+                    {
+                        _int32TMP = (buffer[bufferOffset] << Bit8) | buffer[bufferOffset + 1];
+                        if (_int32TMP >= 0x8000) _int32TMP -= _0xFFFF;
+                        _parameters[_iter] = Convert.ToInt16(_int32TMP);
                         bufferOffset += 2;
                         break;
+                    }
                     case Types.UInt16:
-                        _int32tmp = (buffer[bufferOffset] << Bit8) | buffer[bufferOffset + 1];
-                        _parameters[_iter] = Convert.ToUInt16(_int32tmp);
+                        _int32TMP = (buffer[bufferOffset] << Bit8) | buffer[bufferOffset + 1];
+                        _parameters[_iter] = Convert.ToUInt16(_int32TMP);
                         bufferOffset += 2;
                         break;
                     case Types.Int32:
@@ -1803,38 +1262,39 @@ namespace Miner28.UdonUtils.Network
                         bufferOffset += 4;
                         break;
                     case Types.UInt32:
-                        _parameters[_iter] = (uint)((buffer[bufferOffset] << Bit24) |
-                                                    (buffer[bufferOffset + 1] << Bit16) |
-                                                    (buffer[bufferOffset + 2] << Bit8) | buffer[bufferOffset + 3]);
+                        _parameters[_iter] = (uint) ((buffer[bufferOffset] << Bit24) |
+                                                     (buffer[bufferOffset + 1] << Bit16) |
+                                                     (buffer[bufferOffset + 2] << Bit8) | buffer[bufferOffset + 3]);
                         bufferOffset += 4;
                         break;
                     case Types.Int64:
-                        _parameters[_iter] = ((long)buffer[bufferOffset] << Bit56) |
-                                             ((long)buffer[bufferOffset + 1] << Bit48) |
-                                             ((long)buffer[bufferOffset + 2] << Bit40) |
-                                             ((long)buffer[bufferOffset + 3] << Bit32) |
-                                             ((long)buffer[bufferOffset + 4] << Bit24) |
-                                             ((long)buffer[bufferOffset + 5] << Bit16) |
-                                             ((long)buffer[bufferOffset + 6] << Bit8) |
+                        _parameters[_iter] = ((long) buffer[bufferOffset] << Bit56) |
+                                             ((long) buffer[bufferOffset + 1] << Bit48) |
+                                             ((long) buffer[bufferOffset + 2] << Bit40) |
+                                             ((long) buffer[bufferOffset + 3] << Bit32) |
+                                             ((long) buffer[bufferOffset + 4] << Bit24) |
+                                             ((long) buffer[bufferOffset + 5] << Bit16) |
+                                             ((long) buffer[bufferOffset + 6] << Bit8) |
                                              buffer[bufferOffset + 7];
                         bufferOffset += 8;
                         break;
                     case Types.UInt64:
-                        _parameters[_iter] = ((ulong)buffer[bufferOffset] << Bit56) |
-                                             ((ulong)buffer[bufferOffset + 1] << Bit48) |
-                                             ((ulong)buffer[bufferOffset + 2] << Bit40) |
-                                             ((ulong)buffer[bufferOffset + 3] << Bit32) |
-                                             ((ulong)buffer[bufferOffset + 4] << Bit24) |
-                                             ((ulong)buffer[bufferOffset + 5] << Bit16) |
-                                             ((ulong)buffer[bufferOffset + 6] << Bit8) |
+                        _parameters[_iter] = ((ulong) buffer[bufferOffset] << Bit56) |
+                                             ((ulong) buffer[bufferOffset + 1] << Bit48) |
+                                             ((ulong) buffer[bufferOffset + 2] << Bit40) |
+                                             ((ulong) buffer[bufferOffset + 3] << Bit32) |
+                                             ((ulong) buffer[bufferOffset + 4] << Bit24) |
+                                             ((ulong) buffer[bufferOffset + 5] << Bit16) |
+                                             ((ulong) buffer[bufferOffset + 6] << Bit8) |
                                              buffer[bufferOffset + 7];
 
                         bufferOffset += 8;
                         break;
                     case Types.Single:
-                        _uint32Value = ((uint)buffer[bufferOffset] << Bit24) |
-                                       ((uint)buffer[bufferOffset + 1] << Bit16) |
-                                       ((uint)buffer[bufferOffset + 2] << Bit8) | buffer[bufferOffset + 3];
+                    {
+                        _uint32Value = ((uint) buffer[bufferOffset] << Bit24) |
+                                       ((uint) buffer[bufferOffset + 1] << Bit16) |
+                                       ((uint) buffer[bufferOffset + 2] << Bit8) | buffer[bufferOffset + 3];
                         bufferOffset += 4;
                         if (_uint32Value == 0 || _uint32Value == FloatSignBit)
                         {
@@ -1842,8 +1302,8 @@ namespace Miner28.UdonUtils.Network
                             continue;
                         }
 
-                        _exp = (int)((_uint32Value & FloatExpMask) >> 23);
-                        _doubleFracMask = (int)(_uint32Value & FloatFracMask);
+                        _exp = (int) ((_uint32Value & FloatExpMask) >> 23);
+                        _doubleFracMask = (int) (_uint32Value & FloatFracMask);
                         if (_exp == 0xFF)
                         {
                             if (_doubleFracMask == 0)
@@ -1872,14 +1332,16 @@ namespace Miner28.UdonUtils.Network
                         if (_tmpBool) _singleValue = -_singleValue;
                         _parameters[_iter] = _singleValue;
                         break;
+                    }
                     case Types.Double:
-                        _uint64Value = ((ulong)buffer[bufferOffset] << Bit56) |
-                                       ((ulong)buffer[bufferOffset + 1] << Bit48) |
-                                       ((ulong)buffer[bufferOffset + 2] << Bit40) |
-                                       ((ulong)buffer[bufferOffset + 3] << Bit32) |
-                                       ((ulong)buffer[bufferOffset + 4] << Bit24) |
-                                       ((ulong)buffer[bufferOffset + 5] << Bit16) |
-                                       ((ulong)buffer[bufferOffset + 6] << Bit8) | buffer[bufferOffset + 7];
+                    {
+                        _uint64Value = ((ulong) buffer[bufferOffset] << Bit56) |
+                                       ((ulong) buffer[bufferOffset + 1] << Bit48) |
+                                       ((ulong) buffer[bufferOffset + 2] << Bit40) |
+                                       ((ulong) buffer[bufferOffset + 3] << Bit32) |
+                                       ((ulong) buffer[bufferOffset + 4] << Bit24) |
+                                       ((ulong) buffer[bufferOffset + 5] << Bit16) |
+                                       ((ulong) buffer[bufferOffset + 6] << Bit8) | buffer[bufferOffset + 7];
 
                         bufferOffset += 8;
 
@@ -1890,8 +1352,8 @@ namespace Miner28.UdonUtils.Network
                         }
 
 
-                        _exp = (long)((_uint64Value & DoubleExpMask) >> 52);
-                        _doubleFracMask = (long)(_uint64Value & DoubleFracMask);
+                        _exp = (long) ((_uint64Value & DoubleExpMask) >> 52);
+                        _doubleFracMask = (long) (_uint64Value & DoubleFracMask);
 
                         if (_exp == 0x7FF)
                         {
@@ -1911,7 +1373,7 @@ namespace Miner28.UdonUtils.Network
                         if (_tmpBool) _exp -= 1023;
                         else _exp = -1022;
 
-                        _doubleValue = (double)_doubleFracMask / 0x10000000000000UL;
+                        _doubleValue = (double) _doubleFracMask / 0x10000000000000UL;
                         if (_tmpBool) _doubleValue += 1.0;
 
                         _doubleValue *= Math.Pow(2, _exp);
@@ -1920,6 +1382,7 @@ namespace Miner28.UdonUtils.Network
                         if (_tmpBool) _doubleValue = -_doubleValue;
                         _parameters[_iter] = _doubleValue;
                         break;
+                    }
                     case Types.Decimal:
                         _parameters[_iter] = new decimal(new[]
                         {
@@ -1938,54 +1401,56 @@ namespace Miner28.UdonUtils.Network
                         bufferOffset += 16;
                         break;
                     case Types.String:
-                        _int32tmp = 0;
-                        _int32tmp2 = 0;
-                        _int32tmp3 = 0;
-                        _int32tmp4 = lengths[_iter];
-                        chars = new string[_int32tmp4];
+                    {
+                        _int32TMP = 0;
+                        _int32TMP2 = 0;
+                        _int32TMP3 = 0;
+                        _int32TMP4 = lengths[_iter];
+                        chars = new string[_int32TMP4];
 
-                        _int32tmp4 += bufferOffset;
+                        _int32TMP4 += bufferOffset;
 
 
-                        for (var i = bufferOffset; i < _int32tmp4; i++)
+                        for (var i = bufferOffset; i < _int32TMP4; i++)
                         {
                             _byteTmp = buffer[i];
                             if ((_byteTmp & _0x80) == 0)
                             {
-                                chars[_int32tmp++] = ((char)_byteTmp).ToString();
+                                chars[_int32TMP++] = ((char) _byteTmp).ToString();
                             }
                             else if ((_byteTmp & _0xC0) == _0x80)
                             {
-                                if (_int32tmp3 > 0)
+                                if (_int32TMP3 > 0)
                                 {
-                                    _int32tmp2 = _int32tmp2 << 6 | (_byteTmp & _0x3F);
-                                    _int32tmp3--;
-                                    if (_int32tmp3 == 0)
+                                    _int32TMP2 = _int32TMP2 << 6 | (_byteTmp & _0x3F);
+                                    _int32TMP3--;
+                                    if (_int32TMP3 == 0)
                                     {
-                                        chars[_int32tmp++] = char.ConvertFromUtf32(_int32tmp2);
+                                        chars[_int32TMP++] = char.ConvertFromUtf32(_int32TMP2);
                                     }
                                 }
                             }
                             else if ((_byteTmp & _0xE0) == _0xC0)
                             {
-                                _int32tmp3 = 1;
-                                _int32tmp2 = _byteTmp & _0x1F;
+                                _int32TMP3 = 1;
+                                _int32TMP2 = _byteTmp & _0x1F;
                             }
                             else if ((_byteTmp & _0xF0) == _0xE0)
                             {
-                                _int32tmp3 = 2;
-                                _int32tmp2 = _byteTmp & _0x0F;
+                                _int32TMP3 = 2;
+                                _int32TMP2 = _byteTmp & _0x0F;
                             }
                             else if ((_byteTmp & _0xF8) == _0xF0)
                             {
-                                _int32tmp3 = 3;
-                                _int32tmp2 = _byteTmp & _0x07;
+                                _int32TMP3 = 3;
+                                _int32TMP2 = _byteTmp & _0x07;
                             }
                         }
 
                         _parameters[_iter] = string.Concat(chars);
                         bufferOffset += lengths[_iter];
                         break;
+                    }
                     case Types.VRCPlayerApi:
                         _parameters[_iter] = VRCPlayerApi.GetPlayerById(
                             buffer[bufferOffset] << Bit24 |
@@ -2033,7 +1498,6 @@ namespace Miner28.UdonUtils.Network
                             buffer[bufferOffset + 7]);
                         bufferOffset += 8;
                         break;
-
                     case Types.Vector3:
                         _tempBytes = new byte[4];
                         Array.Copy(buffer, bufferOffset, _tempBytes, 0, 4);
@@ -2087,7 +1551,21 @@ namespace Miner28.UdonUtils.Network
                         _parameters[_iter] = new Quaternion(_singleValue, _singleValue2, _singleValue3, _singleValue4);
                         bufferOffset += 16;
                         break;
+                    case Types.DateTime:
+                        _parameters[_iter] = DateTime.FromBinary(
+                            (long) buffer[bufferOffset] << Bit56 |
+                            (long) buffer[bufferOffset + 1] << Bit48 |
+                            (long) buffer[bufferOffset + 2] << Bit40 |
+                            (long) buffer[bufferOffset + 3] << Bit32 |
+                            (long) buffer[bufferOffset + 4] << Bit24 |
+                            (long) buffer[bufferOffset + 5] << Bit16 |
+                            (long) buffer[bufferOffset + 6] << Bit8 |
+                            (long) buffer[bufferOffset + 7]);
+                        bufferOffset += 8;
+                        break;
+                    //Arrays
                     case Types.BooleanA:
+                    {
                         _ushortLength = lengths[_iter];
                         if (_boolA.Length != _ushortLength)
                         {
@@ -2102,7 +1580,9 @@ namespace Miner28.UdonUtils.Network
 
                         _parameters[_iter] = _boolA;
                         break;
+                    }
                     case Types.ByteA:
+                    {
                         _ushortLength = lengths[_iter];
                         if (_byteA.Length != _ushortLength)
                         {
@@ -2113,7 +1593,9 @@ namespace Miner28.UdonUtils.Network
                         _parameters[_iter] = _byteA;
                         bufferOffset += _byteA.Length;
                         break;
+                    }
                     case Types.SByteA:
+                    {
                         _ushortLength = lengths[_iter];
                         if (_sbyteA.Length != _ushortLength)
                         {
@@ -2122,15 +1604,17 @@ namespace Miner28.UdonUtils.Network
 
                         for (var i = 0; i < _ushortLength; i++)
                         {
-                            _int32tmp = buffer[bufferOffset];
-                            if (_int32tmp >= 0x80) _int32tmp -= _0xFF;
-                            _sbyteA[i] = Convert.ToSByte(_int32tmp);
+                            _int32TMP = buffer[bufferOffset];
+                            if (_int32TMP >= 0x80) _int32TMP -= _0xFF;
+                            _sbyteA[i] = Convert.ToSByte(_int32TMP);
                             bufferOffset++;
                         }
 
                         _parameters[_iter] = _sbyteA;
                         break;
+                    }
                     case Types.Int16A:
+                    {
                         _ushortLength = lengths[_iter];
                         if (_int16A.Length != _ushortLength)
                         {
@@ -2139,15 +1623,17 @@ namespace Miner28.UdonUtils.Network
 
                         for (var i = 0; i < _ushortLength; i++)
                         {
-                            _int32tmp = (buffer[bufferOffset] << Bit8) | buffer[bufferOffset + 1];
-                            if (_int32tmp >= 0x8000) _int32tmp -= _0xFFFF;
-                            _int16A[i] = Convert.ToInt16(_int32tmp);
+                            _int32TMP = (buffer[bufferOffset] << Bit8) | buffer[bufferOffset + 1];
+                            if (_int32TMP >= 0x8000) _int32TMP -= _0xFFFF;
+                            _int16A[i] = Convert.ToInt16(_int32TMP);
                             bufferOffset += 2;
                         }
 
                         _parameters[_iter] = _int16A;
                         break;
+                    }
                     case Types.UInt16A:
+                    {
                         _ushortLength = lengths[_iter];
                         if (_uint16A.Length != _ushortLength)
                         {
@@ -2156,13 +1642,15 @@ namespace Miner28.UdonUtils.Network
 
                         for (var i = 0; i < _ushortLength; i++)
                         {
-                            _uint16A[i] = (ushort)((ushort)(buffer[bufferOffset] << Bit8) | buffer[bufferOffset + 1]);
+                            _uint16A[i] = (ushort) ((ushort) (buffer[bufferOffset] << Bit8) | buffer[bufferOffset + 1]);
                             bufferOffset += 2;
                         }
 
                         _parameters[_iter] = _uint16A;
                         break;
+                    }
                     case Types.Int32A:
+                    {
                         _ushortLength = lengths[_iter];
                         if (_int32A.Length != _ushortLength)
                         {
@@ -2178,7 +1666,9 @@ namespace Miner28.UdonUtils.Network
 
                         _parameters[_iter] = _int32A;
                         break;
+                    }
                     case Types.UInt32A:
+                    {
                         _ushortLength = lengths[_iter];
                         if (_uint32A.Length != _ushortLength)
                         {
@@ -2187,15 +1677,17 @@ namespace Miner28.UdonUtils.Network
 
                         for (var i = 0; i < _ushortLength; i++)
                         {
-                            _uint32A[i] = (uint)(buffer[bufferOffset] << Bit24) |
-                                          (uint)(buffer[bufferOffset + 1] << Bit16) |
-                                          (uint)(buffer[bufferOffset + 2] << Bit8) | buffer[bufferOffset + 3];
+                            _uint32A[i] = (uint) (buffer[bufferOffset] << Bit24) |
+                                          (uint) (buffer[bufferOffset + 1] << Bit16) |
+                                          (uint) (buffer[bufferOffset + 2] << Bit8) | buffer[bufferOffset + 3];
                             bufferOffset += 4;
                         }
 
                         _parameters[_iter] = _uint32A;
                         break;
+                    }
                     case Types.Int64A:
+                    {
                         _ushortLength = lengths[_iter];
                         if (_int64A.Length != _ushortLength)
                         {
@@ -2204,19 +1696,21 @@ namespace Miner28.UdonUtils.Network
 
                         for (var i = 0; i < _ushortLength; i++)
                         {
-                            _int64A[i] = ((long)buffer[bufferOffset] << Bit56) |
-                                         ((long)buffer[bufferOffset + 1] << Bit48) |
-                                         ((long)buffer[bufferOffset + 2] << Bit40) |
-                                         ((long)buffer[bufferOffset + 3] << Bit32) |
-                                         ((long)buffer[bufferOffset + 4] << Bit24) |
-                                         ((long)buffer[bufferOffset + 5] << Bit16) |
-                                         ((long)buffer[bufferOffset + 6] << Bit8) | buffer[bufferOffset + 7];
+                            _int64A[i] = ((long) buffer[bufferOffset] << Bit56) |
+                                         ((long) buffer[bufferOffset + 1] << Bit48) |
+                                         ((long) buffer[bufferOffset + 2] << Bit40) |
+                                         ((long) buffer[bufferOffset + 3] << Bit32) |
+                                         ((long) buffer[bufferOffset + 4] << Bit24) |
+                                         ((long) buffer[bufferOffset + 5] << Bit16) |
+                                         ((long) buffer[bufferOffset + 6] << Bit8) | buffer[bufferOffset + 7];
                             bufferOffset += 8;
                         }
 
                         _parameters[_iter] = _int64A;
                         break;
+                    }
                     case Types.UInt64A:
+                    {
                         _ushortLength = lengths[_iter];
                         if (_uint64A.Length != _ushortLength)
                         {
@@ -2225,19 +1719,21 @@ namespace Miner28.UdonUtils.Network
 
                         for (var i = 0; i < _ushortLength; i++)
                         {
-                            _uint64A[i] = ((ulong)buffer[bufferOffset] << Bit56) |
-                                          ((ulong)buffer[bufferOffset + 1] << Bit48) |
-                                          ((ulong)buffer[bufferOffset + 2] << Bit40) |
-                                          ((ulong)buffer[bufferOffset + 3] << Bit32) |
-                                          ((ulong)buffer[bufferOffset + 4] << Bit24) |
-                                          ((ulong)buffer[bufferOffset + 5] << Bit16) |
-                                          ((ulong)buffer[bufferOffset + 6] << Bit8) | buffer[bufferOffset + 7];
+                            _uint64A[i] = ((ulong) buffer[bufferOffset] << Bit56) |
+                                          ((ulong) buffer[bufferOffset + 1] << Bit48) |
+                                          ((ulong) buffer[bufferOffset + 2] << Bit40) |
+                                          ((ulong) buffer[bufferOffset + 3] << Bit32) |
+                                          ((ulong) buffer[bufferOffset + 4] << Bit24) |
+                                          ((ulong) buffer[bufferOffset + 5] << Bit16) |
+                                          ((ulong) buffer[bufferOffset + 6] << Bit8) | buffer[bufferOffset + 7];
                             bufferOffset += 8;
                         }
 
                         _parameters[_iter] = _uint64A;
                         break;
+                    }
                     case Types.SingleA:
+                    {
                         _ushortLength = lengths[_iter];
                         if (_singleA.Length != _ushortLength)
                         {
@@ -2254,7 +1750,9 @@ namespace Miner28.UdonUtils.Network
 
                         _parameters[_iter] = _singleA;
                         break;
+                    }
                     case Types.DoubleA:
+                    {
                         _ushortLength = lengths[_iter];
                         if (_doubleA.Length != _ushortLength)
                         {
@@ -2271,7 +1769,9 @@ namespace Miner28.UdonUtils.Network
 
                         _parameters[_iter] = _doubleA;
                         break;
+                    }
                     case Types.DecimalA:
+                    {
                         _ushortLength = lengths[_iter];
                         if (_decimalA.Length != _ushortLength)
                         {
@@ -2296,56 +1796,60 @@ namespace Miner28.UdonUtils.Network
 
                         _parameters[_iter] = _decimalA;
                         break;
+                    }
                     case Types.StringA:
-                        _int32tmp = 0;
-                        _int32tmp2 = 0;
-                        _int32tmp3 = 0;
-                        _int32tmp4 = lengths[_iter];
-                        chars = new string[_int32tmp4];
+                    {
+                        _int32TMP = 0;
+                        _int32TMP2 = 0;
+                        _int32TMP3 = 0;
+                        _int32TMP4 = lengths[_iter];
+                        chars = new string[_int32TMP4];
 
-                        _int32tmp4 += bufferOffset;
+                        _int32TMP4 += bufferOffset;
 
 
-                        for (var i = bufferOffset; i < _int32tmp4; i++)
+                        for (var i = bufferOffset; i < _int32TMP4; i++)
                         {
                             _byteTmp = buffer[i];
                             if ((_byteTmp & _0x80) == 0)
                             {
-                                chars[_int32tmp++] = ((char)_byteTmp).ToString();
+                                chars[_int32TMP++] = ((char) _byteTmp).ToString();
                             }
                             else if ((_byteTmp & _0xC0) == _0x80)
                             {
-                                if (_int32tmp3 > 0)
+                                if (_int32TMP3 > 0)
                                 {
-                                    _int32tmp2 = _int32tmp2 << 6 | (_byteTmp & _0x3F);
-                                    _int32tmp3--;
-                                    if (_int32tmp3 == 0)
+                                    _int32TMP2 = _int32TMP2 << 6 | (_byteTmp & _0x3F);
+                                    _int32TMP3--;
+                                    if (_int32TMP3 == 0)
                                     {
-                                        chars[_int32tmp++] = char.ConvertFromUtf32(_int32tmp2);
+                                        chars[_int32TMP++] = char.ConvertFromUtf32(_int32TMP2);
                                     }
                                 }
                             }
                             else if ((_byteTmp & _0xE0) == _0xC0)
                             {
-                                _int32tmp3 = 1;
-                                _int32tmp2 = _byteTmp & _0x1F;
+                                _int32TMP3 = 1;
+                                _int32TMP2 = _byteTmp & _0x1F;
                             }
                             else if ((_byteTmp & _0xF0) == _0xE0)
                             {
-                                _int32tmp3 = 2;
-                                _int32tmp2 = _byteTmp & _0x0F;
+                                _int32TMP3 = 2;
+                                _int32TMP2 = _byteTmp & _0x0F;
                             }
                             else if ((_byteTmp & _0xF8) == _0xF0)
                             {
-                                _int32tmp3 = 3;
-                                _int32tmp2 = _byteTmp & _0x07;
+                                _int32TMP3 = 3;
+                                _int32TMP2 = _byteTmp & _0x07;
                             }
                         }
 
                         _parameters[_iter] = string.Concat(chars).Split('\0');
                         bufferOffset += lengths[_iter];
                         break;
+                    }
                     case Types.VRCPlayerApiA:
+                    {
                         _ushortLength = lengths[_iter];
                         if (_vrcPlayerApiA.Length != _ushortLength)
                         {
@@ -2354,15 +1858,17 @@ namespace Miner28.UdonUtils.Network
 
                         for (var i = 0; i < _ushortLength; i++)
                         {
-                            _int32tmp = (buffer[bufferOffset] << Bit24) | (buffer[bufferOffset + 1] << Bit16) |
+                            _int32TMP = (buffer[bufferOffset] << Bit24) | (buffer[bufferOffset + 1] << Bit16) |
                                         (buffer[bufferOffset + 2] << Bit8) | buffer[bufferOffset + 3];
-                            _vrcPlayerApiA[i] = VRCPlayerApi.GetPlayerById(_int32tmp);
+                            _vrcPlayerApiA[i] = VRCPlayerApi.GetPlayerById(_int32TMP);
                             bufferOffset += 4;
                         }
 
                         _parameters[_iter] = _vrcPlayerApiA;
                         break;
+                    }
                     case Types.ColorA:
+                    {
                         _ushortLength = lengths[_iter];
                         if (_colorA.Length != _ushortLength)
                         {
@@ -2389,7 +1895,9 @@ namespace Miner28.UdonUtils.Network
 
                         _parameters[_iter] = _colorA;
                         break;
+                    }
                     case Types.Color32A:
+                    {
                         _ushortLength = lengths[_iter];
                         if (_color32A.Length != _ushortLength)
                         {
@@ -2405,7 +1913,9 @@ namespace Miner28.UdonUtils.Network
 
                         _parameters[_iter] = _color32A;
                         break;
+                    }
                     case Types.Vector2A:
+                    {
                         _ushortLength = lengths[_iter];
                         if (_vector2A.Length != _ushortLength)
                         {
@@ -2426,7 +1936,9 @@ namespace Miner28.UdonUtils.Network
 
                         _parameters[_iter] = _vector2A;
                         break;
+                    }
                     case Types.Vector2IntA:
+                    {
                         _ushortLength = lengths[_iter];
                         if (_vector2IntA.Length != _ushortLength)
                         {
@@ -2445,7 +1957,9 @@ namespace Miner28.UdonUtils.Network
 
                         _parameters[_iter] = _vector2IntA;
                         break;
+                    }
                     case Types.Vector3A:
+                    {
                         _ushortLength = lengths[_iter];
                         if (_vector3A.Length != _ushortLength)
                         {
@@ -2469,7 +1983,9 @@ namespace Miner28.UdonUtils.Network
 
                         _parameters[_iter] = _vector3A;
                         break;
+                    }
                     case Types.Vector3IntA:
+                    {
                         _ushortLength = lengths[_iter];
                         if (_vector3IntA.Length != _ushortLength)
                         {
@@ -2490,7 +2006,9 @@ namespace Miner28.UdonUtils.Network
 
                         _parameters[_iter] = _vector3IntA;
                         break;
+                    }
                     case Types.Vector4A:
+                    {
                         _ushortLength = lengths[_iter];
                         if (_vector4A.Length != _ushortLength)
                         {
@@ -2517,7 +2035,9 @@ namespace Miner28.UdonUtils.Network
 
                         _parameters[_iter] = _vector4A;
                         break;
+                    }
                     case Types.QuaternionA:
+                    {
                         _ushortLength = lengths[_iter];
                         if (_quaternionA.Length != _ushortLength)
                         {
@@ -2544,10 +2064,23 @@ namespace Miner28.UdonUtils.Network
 
                         _parameters[_iter] = _quaternionA;
                         break;
+                    }
                 }
             }
-
-            //TODO RECEIVE
         }
+
+        private void OnEnable()
+        {
+            if (_startRun) return;
+            _startRun = true;
+            _debug = networkReceiver.networkManager.debug;
+        }
+
+        private void Log(string log) => Debug.Log($"<color=#00FFFF>[NetCaller]</color> {log}");
+        private void Log(object log) => Debug.Log($"<color=#00FFFF>[NetCaller]</color> {log}");
+        private void LogWarning(string log) => Debug.LogWarning($"<color=#FF8000>[WARN]</color> <color=#00FFFF>[NetCaller]</color> {log}");
+        private void LogWarning(object log) => Debug.LogWarning($"<color=#FF8000>[WARN]</color> <color=#00FFFF>[NetCaller]</color> {log}");
+        private void LogError(string log) => Debug.LogError($"<color=#FF0000>[WARN]</color> <color=#00FFFF>[NetCaller]</color> {log}");
+        private void LogError(object log) => Debug.LogError($"<color=#FF0000>[WARN]</color> <color=#00FFFF>[NetCaller]</color> {log}");
     }
 }

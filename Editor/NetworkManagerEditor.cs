@@ -1,14 +1,9 @@
-﻿using System;
-using System.IO;
-using System.Linq;
-using System.Text;
-using UdonSharp;
-using UdonSharpEditor;
+﻿using UdonSharpEditor;
 using UnityEditor;
 using UnityEngine;
 using VRC.SDK3.Components;
 
-namespace Miner28.NetworkedEventCaller.Editor
+namespace Miner28.UdonUtils.Network
 {
     
     [CustomEditor(typeof(NetworkManager))]
@@ -76,7 +71,7 @@ namespace Miner28.NetworkedEventCaller.Editor
                     
                     newObj.transform.SetParent(callObj.transform);
                     poolObjects[i] = newObj;
-                    var newCaller = newObj.AddComponent<global::NetworkedEventCaller>();
+                    var newCaller = newObj.AddComponent<NetworkedEventCaller>();
                     newCaller.networkReceiver = networkReceiver;
                 }
 

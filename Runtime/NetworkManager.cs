@@ -1,4 +1,6 @@
 ﻿using System;
+using Miner28.UdonUtils;
+using Miner28.UdonUtils.Network;
 using UdonSharp;
 using UnityEngine;
 using VRC.SDK3.Components;
@@ -103,7 +105,7 @@ public class NetworkManager : UdonSharpBehaviour
 
             var o = pool.Pool[i];
             var networkedEventCaller = o.GetComponent<NetworkedEventCaller>();
-            if (networkedEventCaller.methodName == "")
+            if (networkedEventCaller.methodTarget == "")
             {
                 Log($"Returning {i}");
                 pool.Return(o);
@@ -113,7 +115,7 @@ public class NetworkManager : UdonSharpBehaviour
             else
             {
                 Log($"Cleaning up {i}");
-                networkedEventCaller.methodName = "";
+                networkedEventCaller.methodTarget = "";
                 
                 Networking.SetOwner(Networking.LocalPlayer, o);
                 networkedEventCaller.RequestSerialization();

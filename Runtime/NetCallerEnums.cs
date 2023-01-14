@@ -29,6 +29,7 @@ public enum Types : byte
     Vector3Int,
     Vector4,
     Quaternion,
+    DateTime,
 
     //Arrays    
     BooleanA,

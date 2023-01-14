@@ -825,22 +825,110 @@ namespace Miner28.UdonUtils
     
     public static class Extensions
     {
-        public static bool Contains<T>(this T[] array, T item) => Array.IndexOf(array, item) != -1;
-
         public static T[] Add<T>(this T[] array, T item)
-        {
-            T[] newArray = new T[array.Length + 1];
-            Array.Copy(array, newArray, array.Length);
-            newArray[array.Length] = item;
-            return newArray;
-        }
+            {
+                T[] newArray = new T[array.Length + 1];
+                Array.Copy(array, newArray, array.Length);
+                newArray[array.Length] = item;
+                return newArray;
+            }
+        
+            public static T[] Remove<T>(this T[] array, int index)
+            {
+                T[] newArray = new T[array.Length - 1];
+                Array.Copy(array, newArray, index);
+                Array.Copy(array, index + 1, newArray, index, newArray.Length - index);
+                return newArray;
+            }
+            
+            public static T[] Remove<T>(this T[] array, T item)
+            {
+                int index = Array.IndexOf(array, item);
+                if (index == -1)
+                {
+                    return array;
+                }
+                T[] newArray = new T[array.Length - 1];
+                Array.Copy(array, newArray, index);
+                Array.Copy(array, index + 1, newArray, index, newArray.Length - index);
+                return newArray;
+            }
+        
+            private static byte ToByte(float f)
+            {
+                f = Mathf.Clamp01(f);
+                return (byte) (f * 255);
+            }
+            
+            public static bool Contains<T>(this T[] array, T item) => Array.IndexOf(array, item) != -1;
+            public static string ToHex(this Color c) => $"{ToByte(c.r):X2}{ToByte(c.g):X2}{ToByte(c.b):X2}";
 
-        public static T[] Remove<T>(this T[] array, int index)
-        {
-            T[] newArray = new T[array.Length - 1];
-            Array.Copy(array, newArray, index);
-            Array.Copy(array, index + 1, newArray, index, newArray.Length - index);
-            return newArray;
-        }
+            /// <summary>
+            /// Sorts an array in Descending order
+            /// </summary>
+            /// <param name="array"></param>
+            /// <returns></returns>
+            public static byte[] SelectionSortDesc(this byte[] array)
+            {
+                for (int i = 0; i < array.Length - 1; i++)
+                {
+                    int maxIndex = i;
+                    for (int j = i + 1; j < array.Length; j++)
+                    {
+                        if (array[j] > array[maxIndex])
+                        {
+                            maxIndex = j;
+                        }
+                    }
+                    if (maxIndex == i) continue;
+                    {
+                        int j = maxIndex;
+                        while (j > i)
+                        {
+                            var temp = array[j];
+                            array[j] = array[j - 1];
+                            array[j - 1] = temp;
+                            j--;
+                        }
+                    }
+                }
+        
+                return array;
+            }
+        
+            /// <summary>
+            /// Sorts an array in Ascending order
+            /// </summary>
+            /// <param name="array"></param>
+            /// <returns></returns>
+            public static byte[] SelectionSortAsc(this byte[] array)
+            {
+                for (int i = 0; i < array.Length - 1; i++)
+                {
+                    int minIndex = i;
+                    for (int j = i + 1; j < array.Length; j++)
+                    {
+                        if (array[j] < array[minIndex])
+                        {
+                            minIndex = j;
+                        }
+                    }
+                    if (minIndex == i) continue;
+                    {
+                        int j = minIndex;
+                        while (j > i)
+                        {
+                            var temp = array[j];
+                            array[j] = array[j - 1];
+                            array[j - 1] = temp;
+                            j--;
+                        }
+                    }
+                }
+        
+                return array;
+            }
+        
+
     }
 }
