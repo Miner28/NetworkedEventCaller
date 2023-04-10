@@ -131,13 +131,13 @@ public class NetworkManager : UdonSharpBehaviour
     
     #endregion
 
-    
+
     /// <summary>
     /// Sends a method over network with variables
     /// </summary>
-    /// <param name="target"></param>
-    /// <param name="method"></param>
-    /// <param name="paramsObj"></param>
+    /// <param name="target"><see cref="SyncTarget"/> Network Target</param>
+    /// <param name="method"><see cref="string"/> Method Name</param>
+    /// <param name="paramsObj">Array of <see cref="object"/> Parameters</param>
     public void _SendMethod(SyncTarget target, string method, object[] paramsObj) //Middle man method to interact with NetworkEventCaller. Ensures there is no NULL Exception
     {
         if (Utilities.IsValid(myCaller))

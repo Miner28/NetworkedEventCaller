@@ -5,7 +5,7 @@
     Others
 }   
 
-public enum Types : byte
+public enum Types
 {
     Boolean,
     Byte,

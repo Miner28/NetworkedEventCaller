@@ -1,5 +1,6 @@
 ﻿using System;
 using UnityEngine;
+using VRC.SDKBase;
 
 namespace Miner28.UdonUtils
 {

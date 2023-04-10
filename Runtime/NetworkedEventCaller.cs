@@ -293,6 +293,8 @@ namespace Miner28.UdonUtils.Network
 
             ReceiveData(); //Convert data from buffer to parameters
             
+            networkReceiver.byteCount += buffer.Length + types.Length * 4 + lengths.Length * 4; //Add to byte count
+            
             networkReceiver.parameters = _parameters; //Set parameters to network receiver
             networkReceiver.SendCustomEvent(methodTarget); //Send event to network receiver
         }
@@ -500,6 +502,7 @@ namespace Miner28.UdonUtils.Network
             for (_iter = 0; _iter < data.Length; _iter++)
             {
                 var enumType = types[_iter];
+                
                 switch (enumType)
                 {
                     case Types.Boolean:
@@ -2067,6 +2070,8 @@ namespace Miner28.UdonUtils.Network
                     }
                 }
             }
+            
+            
         }
 
         private void OnEnable()
