@@ -32,7 +32,7 @@ namespace Miner28.UdonUtils.Network
                 _callerAssigned = true;
             }
 
-            caller._SendMethod(target, methodName, networkID, paramTokens);
+            caller._PrepareSend(target, methodName, networkID, paramTokens);
         }
 
         public void OnMethodReceived(string method)
