@@ -6,143 +6,150 @@ using UnityEngine;
 using VRC.SDK3.Components;
 using VRC.SDKBase;
 
-[UdonBehaviourSyncMode(BehaviourSyncMode.Manual)]
-public class NetworkManager : UdonSharpBehaviour
+namespace Miner28.UdonUtils.Network
 {
-    private NetworkedEventCaller myCaller;
-    
-    #region PoolManager
-    
-    [HideInInspector]
-    public VRCObjectPool pool;
-    [HideInInspector]
-    public bool debug;
-    
-    [UdonSynced] private int[] poolOwners = new int[100];
-    [UdonSynced] private int[] toClean = new int[0];
-
-    private bool runOnce;
-    private void OnEnable()
+    [UdonBehaviourSyncMode(BehaviourSyncMode.Manual)]
+    public class NetworkManager : UdonSharpBehaviour
     {
-        if (runOnce) return;
+        private NetworkedEventCaller _myCaller;
 
-        poolOwners = new int[pool.Pool.Length];
-        runOnce = true;
-    }
+        #region PoolManager
 
+        [HideInInspector] public NetworkInterface[] sceneInterfaces;
+        [HideInInspector] public int[] sceneInterfacesIds;
 
-    public override void OnPlayerJoined(VRCPlayerApi player)
-    {
-        if (Networking.LocalPlayer.isMaster)
+        [HideInInspector] public VRCObjectPool pool;
+        [HideInInspector] public bool debug;
+
+        [UdonSynced] private int[] poolOwners = new int[100];
+        [UdonSynced] private int[] toClean = new int[0];
+
+        private bool runOnce;
+
+        private void OnEnable()
         {
-            if (!Networking.IsOwner(gameObject)) Networking.SetOwner(Networking.LocalPlayer, gameObject);
+            if (runOnce) return;
 
-            var obj = pool.TryToSpawn();
-            
-            _Cleanup();
-
-            poolOwners[Array.IndexOf(pool.Pool, obj)] = player.playerId;
-            
-            RequestSerialization();
-            
-            if (player.isLocal)
-            {
-                myCaller = obj.GetComponent<NetworkedEventCaller>();
-                Networking.SetOwner(Networking.LocalPlayer, myCaller.gameObject);
-                Log("I have got myself Caller - Master");
-            }
+            poolOwners = new int[pool.Pool.Length];
+            runOnce = true;
         }
-    }
-    
-    public override void OnPlayerLeft(VRCPlayerApi player)
-    {
-        int userId = player.playerId;
 
-        var index = Array.IndexOf(poolOwners, userId);
-        if (index == -1) return;
 
-        toClean = toClean.Add(index);
-        
-        if (Networking.LocalPlayer.isMaster)
+        public override void OnPlayerJoined(VRCPlayerApi player)
         {
-            if (!Networking.IsOwner(gameObject)) Networking.SetOwner(Networking.LocalPlayer, gameObject);
-
-            poolOwners[index] = 0;
-            Networking.SetOwner(Networking.LocalPlayer, pool.Pool[index]);
-
-            RequestSerialization();
-            
-            SendCustomEventDelayedFrames(nameof(_Cleanup), 5);
-        }
-    }
-    
-    public override void OnDeserialization()
-    {
-        if (!Utilities.IsValid(myCaller))
-        {
-            int myId = Networking.LocalPlayer.playerId;
-
-            for (var i = 0; i < poolOwners.Length; i++)
+            if (Networking.LocalPlayer.isMaster)
             {
-                if (myId == poolOwners[i])
+                if (!Networking.IsOwner(gameObject)) Networking.SetOwner(Networking.LocalPlayer, gameObject);
+
+                var obj = pool.TryToSpawn();
+
+                _Cleanup();
+
+                poolOwners[Array.IndexOf(pool.Pool, obj)] = player.playerId;
+
+                RequestSerialization();
+
+                if (player.isLocal)
                 {
-                    myCaller = pool.Pool[i].GetComponent<NetworkedEventCaller>();
-                    Networking.SetOwner(Networking.LocalPlayer, myCaller.gameObject);
-                    Log($"I have got myself Caller - NonMaster {myCaller == null}");
+                    _myCaller = obj.GetComponent<NetworkedEventCaller>();
+                    Networking.SetOwner(Networking.LocalPlayer, _myCaller.gameObject);
+                    Log("I have got myself Caller - Master");
+                    OnCallerAssigned();
                 }
             }
         }
-    }
 
-
-    public void _Cleanup()
-    {
-        if (toClean.Length == 0) return;
-
-        for (var index = 0; index < toClean.Length; index++)
+        public override void OnPlayerLeft(VRCPlayerApi player)
         {
-            var i = toClean[index];
+            int userId = player.playerId;
 
-            var o = pool.Pool[i];
-            var networkedEventCaller = o.GetComponent<NetworkedEventCaller>();
-            if (networkedEventCaller.methodTarget == "")
+            var index = Array.IndexOf(poolOwners, userId);
+            if (index == -1) return;
+
+            toClean = toClean.Add(index);
+
+            if (Networking.LocalPlayer.isMaster)
             {
-                Log($"Returning {i}");
-                pool.Return(o);
-                toClean = toClean.Remove(index);
-                index--;
-            }
-            else
-            {
-                Log($"Cleaning up {i}");
-                networkedEventCaller.methodTarget = "";
-                
-                Networking.SetOwner(Networking.LocalPlayer, o);
-                networkedEventCaller.RequestSerialization();
+                if (!Networking.IsOwner(gameObject)) Networking.SetOwner(Networking.LocalPlayer, gameObject);
+
+                poolOwners[index] = 0;
+                Networking.SetOwner(Networking.LocalPlayer, pool.Pool[index]);
+
+                RequestSerialization();
+
+                SendCustomEventDelayedFrames(nameof(_Cleanup), 5);
             }
         }
-        SendCustomEventDelayedFrames(nameof(_Cleanup), 5);
-    }
 
-    private static void Log(string log)
-    {
-        Debug.Log($"<color=#FFFF00>PoolManager</color> {log}");
-    }
-    
-    #endregion
-
-
-    /// <summary>
-    /// Sends a method over network with variables
-    /// </summary>
-    /// <param name="target"><see cref="SyncTarget"/> Network Target</param>
-    /// <param name="method"><see cref="string"/> Method Name</param>
-    /// <param name="paramsObj">Array of <see cref="object"/> Parameters</param>
-    public void _SendMethod(SyncTarget target, string method, object[] paramsObj) //Middle man method to interact with NetworkEventCaller. Ensures there is no NULL Exception
-    {
-        if (Utilities.IsValid(myCaller))
+        public override void OnDeserialization()
         {
-            myCaller._SendMethod(target, method, paramsObj);
+            if (!Utilities.IsValid(_myCaller))
+            {
+                int myId = Networking.LocalPlayer.playerId;
+
+                for (var i = 0; i < poolOwners.Length; i++)
+                {
+                    if (myId == poolOwners[i])
+                    {
+                        _myCaller = pool.Pool[i].GetComponent<NetworkedEventCaller>();
+                        Networking.SetOwner(Networking.LocalPlayer, _myCaller.gameObject);
+                        Log($"I have got myself Caller - NonMaster {_myCaller == null}");
+                        OnCallerAssigned();
+                    }
+                }
+            }
         }
+
+
+        public void _Cleanup()
+        {
+            if (toClean.Length == 0) return;
+
+            for (var index = 0; index < toClean.Length; index++)
+            {
+                var i = toClean[index];
+
+                var o = pool.Pool[i];
+                var networkedEventCaller = o.GetComponent<NetworkedEventCaller>();
+                if (networkedEventCaller.methodTarget == "")
+                {
+                    Log($"Returning {i}");
+                    pool.Return(o);
+                    toClean = toClean.Remove(index);
+                    index--;
+                }
+                else
+                {
+                    Log($"Cleaning up {i}");
+                    networkedEventCaller.methodTarget = "";
+
+                    Networking.SetOwner(Networking.LocalPlayer, o);
+                    networkedEventCaller.RequestSerialization();
+                }
+            }
+
+            SendCustomEventDelayedFrames(nameof(_Cleanup), 5);
+        }
+
+        private static void Log(string log)
+        {
+            Debug.Log($"<color=#FFFF00>PoolManager</color> {log}");
+        }
+
+        private void OnCallerAssigned()
+        {
+            foreach (var @interface in sceneInterfaces)
+            {
+                Debug.Log(@interface.networkID);
+                @interface.networkManager = this;
+                @interface.caller = _myCaller;
+                @interface.OnCallerAssigned();
+            }
+        }
+
+        #endregion
+
+
+
     }
 }

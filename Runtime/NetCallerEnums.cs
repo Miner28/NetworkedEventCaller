@@ -18,8 +18,8 @@ public enum Types
     UInt64,
     Single,
     Double,
-    Decimal,
     String,
+    Decimal,
     VRCPlayerApi,
     Color,
     Color32,
@@ -54,4 +54,5 @@ public enum Types
     Vector3IntA,
     Vector4A,
     QuaternionA,
+    Null
 }

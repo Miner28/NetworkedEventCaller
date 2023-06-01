@@ -1,16 +1,21 @@
-﻿using UdonSharpEditor;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using UdonSharpEditor;
 using UnityEditor;
+using UnityEditor.Callbacks;
+using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using VRC.SDK3.Components;
 
 namespace Miner28.UdonUtils.Network
 {
-    
     [CustomEditor(typeof(NetworkManager))]
     public class NetworkManagerEditor : UnityEditor.Editor
     {
         private int netCallAmount = 0;
-        
+
         public override void OnInspectorGUI()
         {
             if (UdonSharpGUI.DrawDefaultUdonSharpBehaviourHeader(target)) return;
@@ -18,31 +23,22 @@ namespace Miner28.UdonUtils.Network
 
             networkManager.debug = EditorGUILayout.Toggle("Debug mode", networkManager.debug);
 
-            
+
             GUILayout.Label("Should always be MaxInstanceSize * 2 + 2");
             netCallAmount = EditorGUILayout.IntSlider("NetCallers: ", netCallAmount, 0, 160);
-            
+
             if (GUILayout.Button("Setup NetworkManager"))
             {
                 GameObject obj = networkManager.gameObject;
                 obj.name = "NetworkManager";
-                
+
                 var pool = obj.GetComponent<VRCObjectPool>();
 
                 if (pool == null)
                 {
                     pool = obj.AddComponent<VRCObjectPool>();
                 }
-                
-                var networkReceiver = obj.transform.Find("NetworkReceiver")?.GetComponent<NetworkReceiver>();
 
-                if (networkReceiver == null)
-                {
-                    var netReceiver = new GameObject();
-                    netReceiver.name = "NetworkReceiver";
-                    netReceiver.transform.SetParent(obj.transform);
-                    networkReceiver = netReceiver.AddComponent<NetworkReceiver>();
-                }
 
                 networkManager.pool = pool;
 
@@ -60,7 +56,6 @@ namespace Miner28.UdonUtils.Network
                     callObj.name = "NetCallers";
                     callObj.transform.SetParent(obj.transform);
                 }
-                
 
 
                 GameObject[] poolObjects = new GameObject[netCallAmount];
@@ -68,16 +63,79 @@ namespace Miner28.UdonUtils.Network
                 {
                     var newObj = new GameObject();
                     newObj.name = $"NetCaller {i + 1}";
-                    
+
                     newObj.transform.SetParent(callObj.transform);
                     poolObjects[i] = newObj;
                     var newCaller = newObj.AddComponent<NetworkedEventCaller>();
-                    newCaller.networkReceiver = networkReceiver;
                 }
 
-                networkReceiver.networkManager = networkManager;
                 networkManager.pool.Pool = poolObjects;
             }
+
+            if (GUILayout.Button("Setup NetworkInterface IDs"))
+            {
+                HandleNetworkSetup();
+            }
+        }
+
+        private static void HandleNetworkSetup()
+        {
+            var objectsInScene = GetAllObjectsInScene();
+            var networkManager = objectsInScene.Find(x => x.GetComponent<NetworkManager>() != null)
+                ?.GetComponent<NetworkManager>();
+
+            //List of Objects implementing NetworkInterface
+            var interfacesGameObjects = objectsInScene.FindAll(x => x.GetComponent<NetworkInterface>() != null);
+            var interfaces = interfacesGameObjects.ConvertAll(x => x.GetComponent<NetworkInterface>());
+
+            //Ensure all NetworkInterfaces have unique IDs and reassign them if not, ids are incremental
+            Undo.RecordObjects(interfaces.ToArray(), "NetworkInterface");
+            foreach (var interfaceObj in interfaces)
+            {
+                var obj = interfaceObj;
+                while (interfaces.FindAll(x => x.networkID == obj.networkID).Count > 1)
+                {
+                    interfaceObj.networkID++;
+                    PrefabUtility.RecordPrefabInstancePropertyModifications(interfaceObj);
+                }
+            }
+
+            var networkIds = interfaces.ConvertAll(x => x.networkID);
+            networkManager.sceneInterfaces = interfaces.ToArray();
+            networkManager.sceneInterfacesIds = networkIds.ToArray();
+
+            Undo.RecordObject(networkManager, "NetworkedEventCaller");
+            PrefabUtility.RecordPrefabInstancePropertyModifications(networkManager);
+
+
+            //List of Objects implementing NetworkedEventCaller
+            var callersGameObjects = objectsInScene.FindAll(x => x.GetComponent<NetworkedEventCaller>() != null);
+            var callers = callersGameObjects.ConvertAll(x => x.GetComponent<NetworkedEventCaller>());
+
+            Undo.RecordObjects(callers.ToArray(), "NetworkedEventCaller");
+
+            foreach (var caller in callers)
+            {
+                PrefabUtility.RecordPrefabInstancePropertyModifications(caller);
+
+                caller.sceneInterfaces = networkManager.sceneInterfaces;
+                caller.sceneInterfacesIds = networkManager.sceneInterfacesIds;
+                caller.networkManager = networkManager;
+            }
+        }
+
+        static List<GameObject> GetAllObjectsInScene()
+        {
+            List<GameObject> objectsInScene = new List<GameObject>();
+            foreach (GameObject go in SceneManager.GetActiveScene().GetRootGameObjects())
+            {
+                foreach (var gameObject in go.GetComponentsInChildren<Transform>(true))
+                {
+                    objectsInScene.Add(gameObject.gameObject);
+                }
+            }
+
+            return objectsInScene;
         }
     }
 }
