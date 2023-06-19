@@ -141,7 +141,7 @@ namespace Miner28.UdonUtils.Network
             foreach (var @interface in sceneInterfaces)
             {
                 Debug.Log(@interface.networkID);
-                @interface.networkManager = this;
+                @interface.networkManagerInternal = this;
                 @interface.caller = _myCaller;
                 @interface.OnCallerAssigned();
             }

@@ -1,6 +1,7 @@
 ﻿using System;
 using UdonSharp;
 using UnityEngine;
+using UnityEngine.Serialization;
 using VRC.SDK3.Data;
 using VRC.SDKBase;
 
@@ -14,12 +15,12 @@ namespace Miner28.UdonUtils.Network
         
         [NonSerialized] public DataToken[] localTokens;
 
-        [HideInInspector] public NetworkManager networkManager;
+        [HideInInspector] public NetworkManager networkManagerInternal;
         [HideInInspector] public NetworkedEventCaller caller;
 
         private bool _callerAssigned;
 
-        protected void SendMethodNetworked(string methodName, SyncTarget target, params DataToken[] paramTokens)
+        public void SendMethodNetworked(string methodName, SyncTarget target, params DataToken[] paramTokens)
         {
             if (!_callerAssigned)
             {
@@ -35,9 +36,17 @@ namespace Miner28.UdonUtils.Network
             caller._PrepareSend(target, methodName, networkID, paramTokens);
         }
 
-        public void OnMethodReceived(string method)
+        public void _OnMethodReceived(string method)
         {
             _paramOffset = 0;
+            SendCustomEvent(method);
+        }
+        
+        public void LocalMethod(string method, params DataToken[] paramTokens)
+        {
+            _paramOffset = 0;
+            localTokens = paramTokens;
+            Debug.LogError($"[LocalMethod] {method}");
             SendCustomEvent(method);
         }
 
@@ -54,8 +63,29 @@ namespace Miner28.UdonUtils.Network
         protected float GetFloat() => localTokens[_paramOffset++].Float;
         protected double GetDouble() => localTokens[_paramOffset++].Double;
         protected string GetString() => localTokens[_paramOffset++].String;
+        protected DataDictionary GetStringAsDictionary()
+        {
+            string json = localTokens[_paramOffset++].String;
+            VRCJson.TryDeserializeFromJson(json, out var token);
+            return token.DataDictionary;
+        }
+        protected DataList GetStringAsList()
+        {
+            string json = localTokens[_paramOffset++].String;
+            VRCJson.TryDeserializeFromJson(json, out var token);
+            return token.DataList;
+        }
         protected decimal GetDecimal() => (decimal) localTokens[_paramOffset++].Reference;
-        protected VRCPlayerApi GetPlayer() => (VRCPlayerApi) localTokens[_paramOffset++].Reference;
+        protected VRCPlayerApi GetPlayer()
+        {
+            if (localTokens[_paramOffset].IsNull)
+            {
+                _paramOffset++;
+                return null;
+            }
+            return (VRCPlayerApi) localTokens[_paramOffset++].Reference;
+        }
+
         protected Color GetColor() => (Color) localTokens[_paramOffset++].Reference;
         protected Color32 GetColor32() => (Color32) localTokens[_paramOffset++].Reference;
         protected Vector2 GetVector2() => (Vector2) localTokens[_paramOffset++].Reference;

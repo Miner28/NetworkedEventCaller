@@ -107,7 +107,7 @@ namespace Miner28.UdonUtils.Network
         private bool _debug;
         private bool _startRun;
 
-        
+
         #region Constants
 
         private Type[] _typeMap =
@@ -213,7 +213,9 @@ namespace Miner28.UdonUtils.Network
             _0xFFFF = 0xFFFF;
 
         #endregion
+
         #region StorageVariables
+
         private bool _tmpBool;
         private byte _byteTmp;
         private sbyte _sbyteValue;
@@ -272,19 +274,19 @@ namespace Miner28.UdonUtils.Network
         private VRCPlayerApi[] _vrcPlayerApiA = new VRCPlayerApi[0];
 
         #endregion
-        
+
         private DataToken[] _parameters = new DataToken[0];
         private int _bufferOffset;
-        
+
         private int _localSentOut;
         [UdonSynced] private int _sentOutMethods;
         [UdonSynced, NonSerialized] public string methodTarget;
         [UdonSynced] private int _scriptTarget;
-        
+
         [UdonSynced] private byte[] _buffer = new byte[0];
         [UdonSynced] private Types[] _types = new Types[0];
         [UdonSynced] private ushort[] _lengths = new ushort[0];
-        
+
         private DataList _methodQueue = new DataList();
         private DataList _targetQueue = new DataList();
         private DataList _dataQueue = new DataList();
@@ -293,7 +295,8 @@ namespace Miner28.UdonUtils.Network
 
         public override void OnPreSerialization()
         {
-            if (_debug) Log($"PreSerialization - {methodTarget} - {_buffer.Length} - {_types.Length} - {_lengths.Length}");
+            if (_debug)
+                Log($"PreSerialization - {methodTarget} - {_buffer.Length} - {_types.Length} - {_lengths.Length}");
         }
 
         public override void OnPostSerialization(SerializationResult result)
@@ -306,31 +309,35 @@ namespace Miner28.UdonUtils.Network
 
         public override void OnDeserialization()
         {
-            if (_debug) Log($"Deserialization - {methodTarget} - {_buffer.Length} - {_types.Length} - {_lengths.Length}");
+            if (_debug)
+                Log($"Deserialization - {methodTarget} - {_buffer.Length} - {_types.Length} - {_lengths.Length}");
 
             if (string.IsNullOrEmpty(methodTarget)) return;
 
             if (_localSentOut >= _sentOutMethods && _localSentOut != 0)
             {
-                if (_debug) LogWarning($"Ignoring deserialization, already sent out Local: {_localSentOut} - Global: {_sentOutMethods}");
+                if (_debug)
+                    LogWarning(
+                        $"Ignoring deserialization, already sent out Local: {_localSentOut} - Global: {_sentOutMethods}");
                 _localSentOut = _sentOutMethods;
                 return;
             }
-            
+
             _localSentOut = _sentOutMethods;
 
-            
+
             var sIndex = Array.IndexOf(sceneInterfacesIds, _scriptTarget);
             if (sIndex == -1)
             {
                 Log("Script target not found unable to receive and process data");
                 return;
             }
+
             ReceiveData(); //Convert data from buffer to parameters
-            
+
             var targetScript = sceneInterfaces[sIndex];
             targetScript.localTokens = _parameters;
-            targetScript.OnMethodReceived(methodTarget);
+            targetScript._OnMethodReceived(methodTarget);
         }
 
 
@@ -343,15 +350,18 @@ namespace Miner28.UdonUtils.Network
                 return;
             }
 
+            LogError(method);
+
+
             if (target != SyncTarget.Others)
             {
                 var targetScript = sceneInterfaces[sIndex];
                 targetScript.localTokens = data;
-                targetScript.OnMethodReceived(method);
+                targetScript._OnMethodReceived(method);
                 Log("Sent method locally");
             }
-            
-            
+
+
             //Limit sending method every 0.1 seconds
             if (Time.realtimeSinceStartup - _lastSendTime < 0.1f)
             {
@@ -363,13 +373,14 @@ namespace Miner28.UdonUtils.Network
                     _queueRunning = true;
                     _SendQueue();
                 }
+
                 return;
             }
-            
+
             SendData(method, scriptTarget, data);
             _lastSendTime = Time.realtimeSinceStartup;
         }
-        
+
         public void _SendQueue()
         {
             if (_methodQueue.Count == 0)
@@ -377,25 +388,25 @@ namespace Miner28.UdonUtils.Network
                 _queueRunning = false;
                 return;
             }
-            
+
             Log($"Handling queue {_methodQueue.Count}");
 
             var method = _methodQueue[0].String;
             var target = _targetQueue[0].Int;
             var data = (DataToken[]) _dataQueue[0].Reference;
-            
+
             _methodQueue.RemoveAt(0);
             _targetQueue.RemoveAt(0);
             _dataQueue.RemoveAt(0);
             SendData(method, target, data);
             _lastSendTime = Time.realtimeSinceStartup;
-            
+
             SendCustomEventDelayedSeconds(nameof(_SendQueue), 0.1f);
         }
 
         private void SendData(string method, int scriptTarget, DataToken[] data)
         {
-                     int requiredLength = 0;
+            int requiredLength = 0;
             var sIndex = Array.IndexOf(sceneInterfacesIds, scriptTarget);
             if (sIndex == -1)
             {
@@ -429,8 +440,10 @@ namespace Miner28.UdonUtils.Network
                     enumType = (Types) typeId;
                 }
 
+                LogError(enumType);
+
                 _types[y] = enumType;
-                
+
                 ushort length;
                 switch (enumType)
                 {
@@ -618,7 +631,9 @@ namespace Miner28.UdonUtils.Network
             for (_iter = 0; _iter < data.Length; _iter++)
             {
                 var enumType = _types[_iter];
-                
+
+                LogWarning($"Type {enumType}");
+
                 switch (enumType)
                 {
                     case Types.Boolean:
@@ -998,7 +1013,8 @@ namespace Miner28.UdonUtils.Network
                         for (int j = 0; j < _sbyteA.Length; j++)
                         {
                             _sbyteValue = _sbyteA[j];
-                            _buffer[_bufferOffset + j] = (byte) (_sbyteValue < 0 ? (_sbyteValue + 0xFFFF) : _sbyteValue);
+                            _buffer[_bufferOffset + j] =
+                                (byte) (_sbyteValue < 0 ? (_sbyteValue + 0xFFFF) : _sbyteValue);
                         }
 
                         _bufferOffset += _sbyteA.Length;
@@ -1015,7 +1031,6 @@ namespace Miner28.UdonUtils.Network
                             _bufferOffset += 2;
                         }
 
-                        _bufferOffset += _int16A.Length * 2;
                         break;
                     }
                     case Types.UInt16A:
@@ -1029,7 +1044,6 @@ namespace Miner28.UdonUtils.Network
                             _bufferOffset += 2;
                         }
 
-                        _bufferOffset += _uint16A.Length * 2;
                         break;
                     }
                     case Types.Int32A:
@@ -1038,6 +1052,7 @@ namespace Miner28.UdonUtils.Network
                         for (int j = 0; j < _int32A.Length; j++)
                         {
                             _int32TMP2 = _int32A[j];
+                            LogWarning(_int32TMP2);
                             _buffer[_bufferOffset] = (byte) ((_int32TMP2 >> Bit24) & _0xFF);
                             _buffer[_bufferOffset + 1] = (byte) ((_int32TMP2 >> Bit16) & _0xFF);
                             _buffer[_bufferOffset + 2] = (byte) ((_int32TMP2 >> Bit8) & _0xFF);
@@ -1045,7 +1060,6 @@ namespace Miner28.UdonUtils.Network
                             _bufferOffset += 4;
                         }
 
-                        _bufferOffset += _int32A.Length * 4;
                         break;
                     }
                     case Types.UInt32A:
@@ -1061,7 +1075,6 @@ namespace Miner28.UdonUtils.Network
                             _bufferOffset += 4;
                         }
 
-                        _bufferOffset += _uint32A.Length * 4;
                         break;
                     }
                     case Types.Int64A:
@@ -1081,7 +1094,6 @@ namespace Miner28.UdonUtils.Network
                             _bufferOffset += 8;
                         }
 
-                        _bufferOffset += _int64A.Length * 8;
                         break;
                     }
                     case Types.UInt64A:
@@ -1101,7 +1113,6 @@ namespace Miner28.UdonUtils.Network
                             _bufferOffset += 8;
                         }
 
-                        _bufferOffset += _uint64A.Length * 8;
                         break;
                     }
                     case Types.SingleA:
@@ -1159,6 +1170,7 @@ namespace Miner28.UdonUtils.Network
                             _buffer[_bufferOffset + 3] = (byte) (_int32TMP & _0xFF);
                             _bufferOffset += 4;
                         }
+
                         break;
                     }
                     case Types.ColorA:
@@ -1321,8 +1333,8 @@ namespace Miner28.UdonUtils.Network
             {
                 Log("Sending " + method + " to " + scriptTarget + " with " + data.Length + " parameters");
             }
-            
-            
+
+
             methodTarget = method;
             this._scriptTarget = scriptTarget;
             _sentOutMethods++;
@@ -1332,7 +1344,6 @@ namespace Miner28.UdonUtils.Network
 
         private void ReceiveData()
         {
-
             if (_parameters.Length != _types.Length)
             {
                 _parameters = new DataToken[_types.Length];
@@ -1588,11 +1599,13 @@ namespace Miner28.UdonUtils.Network
                         _singleValue3 = BitConverter.ToSingle(_tempBytes);
                         Array.Copy(_buffer, _bufferOffset + 12, _tempBytes, 0, 4);
                         _singleValue4 = BitConverter.ToSingle(_tempBytes);
-                        _parameters[_iter] = new DataToken(new Color(_singleValue, _singleValue2, _singleValue3, _singleValue4));
+                        _parameters[_iter] =
+                            new DataToken(new Color(_singleValue, _singleValue2, _singleValue3, _singleValue4));
                         _bufferOffset += 16;
                         break;
                     case Types.Color32:
-                        _parameters[_iter] = new DataToken(new Color32(_buffer[_bufferOffset], _buffer[_bufferOffset + 1],
+                        _parameters[_iter] = new DataToken(new Color32(_buffer[_bufferOffset],
+                            _buffer[_bufferOffset + 1],
                             _buffer[_bufferOffset + 2], _buffer[_bufferOffset + 3]));
                         _bufferOffset += 4;
                         break;
@@ -1654,7 +1667,8 @@ namespace Miner28.UdonUtils.Network
                         _singleValue3 = BitConverter.ToSingle(_tempBytes);
                         Array.Copy(_buffer, _bufferOffset + 12, _tempBytes, 0, 4);
                         _singleValue4 = BitConverter.ToSingle(_tempBytes);
-                        _parameters[_iter] = new DataToken(new Vector4(_singleValue, _singleValue2, _singleValue3, _singleValue4));
+                        _parameters[_iter] =
+                            new DataToken(new Vector4(_singleValue, _singleValue2, _singleValue3, _singleValue4));
                         _bufferOffset += 16;
                         break;
                     case Types.Quaternion:
@@ -1667,7 +1681,8 @@ namespace Miner28.UdonUtils.Network
                         _singleValue3 = BitConverter.ToSingle(_tempBytes);
                         Array.Copy(_buffer, _bufferOffset + 12, _tempBytes, 0, 4);
                         _singleValue4 = BitConverter.ToSingle(_tempBytes);
-                        _parameters[_iter] = new DataToken(new Quaternion(_singleValue, _singleValue2, _singleValue3, _singleValue4));
+                        _parameters[_iter] =
+                            new DataToken(new Quaternion(_singleValue, _singleValue2, _singleValue3, _singleValue4));
                         _bufferOffset += 16;
                         break;
                     case Types.DateTime:
@@ -1686,10 +1701,7 @@ namespace Miner28.UdonUtils.Network
                     case Types.BooleanA:
                     {
                         _ushortLength = _lengths[_iter];
-                        if (_boolA.Length != _ushortLength)
-                        {
-                            _boolA = new bool[_ushortLength];
-                        }
+                        _boolA = new bool[_ushortLength];
 
                         for (var i = 0; i < _ushortLength; i++)
                         {
@@ -1703,10 +1715,7 @@ namespace Miner28.UdonUtils.Network
                     case Types.ByteA:
                     {
                         _ushortLength = _lengths[_iter];
-                        if (_byteA.Length != _ushortLength)
-                        {
-                            _byteA = new byte[_ushortLength];
-                        }
+                        _byteA = new byte[_ushortLength];
 
                         Array.Copy(_buffer, _bufferOffset, _byteA, 0, _byteA.Length);
                         _parameters[_iter] = new DataToken(_byteA);
@@ -1716,10 +1725,7 @@ namespace Miner28.UdonUtils.Network
                     case Types.SByteA:
                     {
                         _ushortLength = _lengths[_iter];
-                        if (_sbyteA.Length != _ushortLength)
-                        {
-                            _sbyteA = new sbyte[_ushortLength];
-                        }
+                        _sbyteA = new sbyte[_ushortLength];
 
                         for (var i = 0; i < _ushortLength; i++)
                         {
@@ -1735,10 +1741,7 @@ namespace Miner28.UdonUtils.Network
                     case Types.Int16A:
                     {
                         _ushortLength = _lengths[_iter];
-                        if (_int16A.Length != _ushortLength)
-                        {
-                            _int16A = new short[_ushortLength];
-                        }
+                        _int16A = new short[_ushortLength];
 
                         for (var i = 0; i < _ushortLength; i++)
                         {
@@ -1748,20 +1751,18 @@ namespace Miner28.UdonUtils.Network
                             _bufferOffset += 2;
                         }
 
-                        _parameters[_iter] =new DataToken( _int16A);
+                        _parameters[_iter] = new DataToken(_int16A);
                         break;
                     }
                     case Types.UInt16A:
                     {
                         _ushortLength = _lengths[_iter];
-                        if (_uint16A.Length != _ushortLength)
-                        {
-                            _uint16A = new ushort[_ushortLength];
-                        }
+                        _uint16A = new ushort[_ushortLength];
 
                         for (var i = 0; i < _ushortLength; i++)
                         {
-                            _uint16A[i] = (ushort) ((ushort) (_buffer[_bufferOffset] << Bit8) | _buffer[_bufferOffset + 1]);
+                            _uint16A[i] = (ushort) ((ushort) (_buffer[_bufferOffset] << Bit8) |
+                                                    _buffer[_bufferOffset + 1]);
                             _bufferOffset += 2;
                         }
 
@@ -1771,10 +1772,8 @@ namespace Miner28.UdonUtils.Network
                     case Types.Int32A:
                     {
                         _ushortLength = _lengths[_iter];
-                        if (_int32A.Length != _ushortLength)
-                        {
-                            _int32A = new int[_ushortLength];
-                        }
+                        _int32A = new int[_ushortLength];
+
 
                         for (var i = 0; i < _ushortLength; i++)
                         {
@@ -1789,10 +1788,8 @@ namespace Miner28.UdonUtils.Network
                     case Types.UInt32A:
                     {
                         _ushortLength = _lengths[_iter];
-                        if (_uint32A.Length != _ushortLength)
-                        {
-                            _uint32A = new uint[_ushortLength];
-                        }
+                        _uint32A = new uint[_ushortLength];
+
 
                         for (var i = 0; i < _ushortLength; i++)
                         {
@@ -1808,10 +1805,7 @@ namespace Miner28.UdonUtils.Network
                     case Types.Int64A:
                     {
                         _ushortLength = _lengths[_iter];
-                        if (_int64A.Length != _ushortLength)
-                        {
-                            _int64A = new long[_ushortLength];
-                        }
+                        _int64A = new long[_ushortLength];
 
                         for (var i = 0; i < _ushortLength; i++)
                         {
@@ -1831,10 +1825,7 @@ namespace Miner28.UdonUtils.Network
                     case Types.UInt64A:
                     {
                         _ushortLength = _lengths[_iter];
-                        if (_uint64A.Length != _ushortLength)
-                        {
-                            _uint64A = new ulong[_ushortLength];
-                        }
+                        _uint64A = new ulong[_ushortLength];
 
                         for (var i = 0; i < _ushortLength; i++)
                         {
@@ -1854,10 +1845,7 @@ namespace Miner28.UdonUtils.Network
                     case Types.SingleA:
                     {
                         _ushortLength = _lengths[_iter];
-                        if (_singleA.Length != _ushortLength)
-                        {
-                            _singleA = new float[_ushortLength];
-                        }
+                        _singleA = new float[_ushortLength];
 
                         _tempBytes = new byte[4];
                         for (var i = 0; i < _ushortLength; i++)
@@ -1873,10 +1861,7 @@ namespace Miner28.UdonUtils.Network
                     case Types.DoubleA:
                     {
                         _ushortLength = _lengths[_iter];
-                        if (_doubleA.Length != _ushortLength)
-                        {
-                            _doubleA = new double[_ushortLength];
-                        }
+                        _doubleA = new double[_ushortLength];
 
                         _tempBytes = new byte[8];
                         for (var i = 0; i < _ushortLength; i++)
@@ -1892,10 +1877,8 @@ namespace Miner28.UdonUtils.Network
                     case Types.DecimalA:
                     {
                         _ushortLength = _lengths[_iter];
-                        if (_decimalA.Length != _ushortLength)
-                        {
-                            _decimalA = new decimal[_ushortLength];
-                        }
+                        _decimalA = new decimal[_ushortLength];
+
 
                         for (var i = 0; i < _ushortLength; i++)
                         {
@@ -1970,10 +1953,7 @@ namespace Miner28.UdonUtils.Network
                     case Types.VRCPlayerApiA:
                     {
                         _ushortLength = _lengths[_iter];
-                        if (_vrcPlayerApiA.Length != _ushortLength)
-                        {
-                            _vrcPlayerApiA = new VRCPlayerApi[_ushortLength];
-                        }
+                        _vrcPlayerApiA = new VRCPlayerApi[_ushortLength];
 
                         for (var i = 0; i < _ushortLength; i++)
                         {
@@ -1989,10 +1969,7 @@ namespace Miner28.UdonUtils.Network
                     case Types.ColorA:
                     {
                         _ushortLength = _lengths[_iter];
-                        if (_colorA.Length != _ushortLength)
-                        {
-                            _colorA = new Color[_ushortLength];
-                        }
+                        _colorA = new Color[_ushortLength];
 
                         _tempBytes = new byte[4];
                         for (var i = 0; i < _ushortLength; i++)
@@ -2018,10 +1995,7 @@ namespace Miner28.UdonUtils.Network
                     case Types.Color32A:
                     {
                         _ushortLength = _lengths[_iter];
-                        if (_color32A.Length != _ushortLength)
-                        {
-                            _color32A = new Color32[_ushortLength];
-                        }
+                        _color32A = new Color32[_ushortLength];
 
                         for (var i = 0; i < _ushortLength; i++)
                         {
@@ -2036,10 +2010,7 @@ namespace Miner28.UdonUtils.Network
                     case Types.Vector2A:
                     {
                         _ushortLength = _lengths[_iter];
-                        if (_vector2A.Length != _ushortLength)
-                        {
-                            _vector2A = new Vector2[_ushortLength];
-                        }
+                        _vector2A = new Vector2[_ushortLength];
 
                         _tempBytes = new byte[4];
                         for (var i = 0; i < _ushortLength; i++)
@@ -2059,10 +2030,7 @@ namespace Miner28.UdonUtils.Network
                     case Types.Vector2IntA:
                     {
                         _ushortLength = _lengths[_iter];
-                        if (_vector2IntA.Length != _ushortLength)
-                        {
-                            _vector2IntA = new Vector2Int[_ushortLength];
-                        }
+                        _vector2IntA = new Vector2Int[_ushortLength];
 
                         for (var i = 0; i < _ushortLength; i++)
                         {
@@ -2080,10 +2048,7 @@ namespace Miner28.UdonUtils.Network
                     case Types.Vector3A:
                     {
                         _ushortLength = _lengths[_iter];
-                        if (_vector3A.Length != _ushortLength)
-                        {
-                            _vector3A = new Vector3[_ushortLength];
-                        }
+                        _vector3A = new Vector3[_ushortLength];
 
                         _tempBytes = new byte[4];
                         for (var i = 0; i < _ushortLength; i++)
@@ -2106,10 +2071,7 @@ namespace Miner28.UdonUtils.Network
                     case Types.Vector3IntA:
                     {
                         _ushortLength = _lengths[_iter];
-                        if (_vector3IntA.Length != _ushortLength)
-                        {
-                            _vector3IntA = new Vector3Int[_ushortLength];
-                        }
+                        _vector3IntA = new Vector3Int[_ushortLength];
 
                         for (var i = 0; i < _ushortLength; i++)
                         {
@@ -2129,10 +2091,7 @@ namespace Miner28.UdonUtils.Network
                     case Types.Vector4A:
                     {
                         _ushortLength = _lengths[_iter];
-                        if (_vector4A.Length != _ushortLength)
-                        {
-                            _vector4A = new Vector4[_ushortLength];
-                        }
+                        _vector4A = new Vector4[_ushortLength];
 
                         _tempBytes = new byte[4];
                         for (var i = 0; i < _ushortLength; i++)
@@ -2158,10 +2117,7 @@ namespace Miner28.UdonUtils.Network
                     case Types.QuaternionA:
                     {
                         _ushortLength = _lengths[_iter];
-                        if (_quaternionA.Length != _ushortLength)
-                        {
-                            _quaternionA = new Quaternion[_ushortLength];
-                        }
+                        _quaternionA = new Quaternion[_ushortLength];
 
                         _tempBytes = new byte[4];
                         for (var i = 0; i < _ushortLength; i++)
@@ -2186,8 +2142,6 @@ namespace Miner28.UdonUtils.Network
                     }
                 }
             }
-            
-
         }
 
         private void OnEnable()
@@ -2199,9 +2153,17 @@ namespace Miner28.UdonUtils.Network
 
         private void Log(string log) => Debug.Log($"<color=#00FFFF>[NetCaller]</color> {log}");
         private void Log(object log) => Debug.Log($"<color=#00FFFF>[NetCaller]</color> {log}");
-        private void LogWarning(string log) => Debug.LogWarning($"<color=#FF8000>[WARN]</color> <color=#00FFFF>[NetCaller]</color> {log}");
-        private void LogWarning(object log) => Debug.LogWarning($"<color=#FF8000>[WARN]</color> <color=#00FFFF>[NetCaller]</color> {log}");
-        private void LogError(string log) => Debug.LogError($"<color=#FF0000>[WARN]</color> <color=#00FFFF>[NetCaller]</color> {log}");
-        private void LogError(object log) => Debug.LogError($"<color=#FF0000>[WARN]</color> <color=#00FFFF>[NetCaller]</color> {log}");
+
+        private void LogWarning(string log) =>
+            Debug.LogWarning($"<color=#FF8000>[WARN]</color> <color=#00FFFF>[NetCaller]</color> {log}");
+
+        private void LogWarning(object log) =>
+            Debug.LogWarning($"<color=#FF8000>[WARN]</color> <color=#00FFFF>[NetCaller]</color> {log}");
+
+        private void LogError(string log) =>
+            Debug.LogError($"<color=#FF0000>[WARN]</color> <color=#00FFFF>[NetCaller]</color> {log}");
+
+        private void LogError(object log) =>
+            Debug.LogError($"<color=#FF0000>[WARN]</color> <color=#00FFFF>[NetCaller]</color> {log}");
     }
 }
