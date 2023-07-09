@@ -4,10 +4,10 @@ on:
   workflow_dispatch:
   push:
     branches: main
-    paths: Packages/com.vrchat.demo-template/**
+    paths: Packages/com.miner28.networkedeventcaller/**
 
 env:
-  packageName: "com.vrchat.demo-template"
+  packageName: "com.miner28.networkedeventcaller"
 
 permissions:
   contents: write
