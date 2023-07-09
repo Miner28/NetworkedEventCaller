@@ -78,7 +78,7 @@ namespace Miner28.UdonUtils.Network
             }
         }
 
-        private static void HandleNetworkSetup()
+        public static void HandleNetworkSetup()
         {
             var objectsInScene = GetAllObjectsInScene();
             var networkManager = objectsInScene.Find(x => x.GetComponent<NetworkManager>() != null)

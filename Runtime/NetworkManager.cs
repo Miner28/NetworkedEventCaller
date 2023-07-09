@@ -4,6 +4,7 @@ using Miner28.UdonUtils.Network;
 using UdonSharp;
 using UnityEngine;
 using VRC.SDK3.Components;
+using VRC.SDK3.Data;
 using VRC.SDKBase;
 
 namespace Miner28.UdonUtils.Network
@@ -12,11 +13,17 @@ namespace Miner28.UdonUtils.Network
     public class NetworkManager : UdonSharpBehaviour
     {
         private NetworkedEventCaller _myCaller;
+        [HideInInspector] public string methodInfosJson;
+        internal DataDictionary methodInfos;
+        internal DataList methodInfosKeys;
+        internal DataList methodInfosValues;
+
 
         #region PoolManager
 
         [HideInInspector] public NetworkInterface[] sceneInterfaces;
         [HideInInspector] public int[] sceneInterfacesIds;
+        [HideInInspector] public NetworkedEventCaller[] sceneCallers;
 
         [HideInInspector] public VRCObjectPool pool;
         [HideInInspector] public bool debug;
@@ -24,14 +31,41 @@ namespace Miner28.UdonUtils.Network
         [UdonSynced] private int[] poolOwners = new int[100];
         [UdonSynced] private int[] toClean = new int[0];
 
-        private bool runOnce;
+        private bool _runOnce;
 
         private void OnEnable()
         {
-            if (runOnce) return;
+            if (_runOnce) return;
 
             poolOwners = new int[pool.Pool.Length];
-            runOnce = true;
+            _runOnce = true;
+            if (string.IsNullOrEmpty(methodInfosJson))
+            {
+                Log("MethodInfosJson is empty");
+                methodInfos = new DataDictionary();
+            }
+            else
+            {
+                VRCJson.TryDeserializeFromJson(methodInfosJson, out var json);
+                methodInfos = json.DataDictionary;
+            }
+
+            methodInfosKeys = methodInfos.GetKeys();
+            methodInfosKeys.Sort();
+            
+
+
+            foreach (var @interface in sceneInterfaces) 
+            {
+                @interface.SetupInterface();
+            }
+
+            foreach (var caller in sceneCallers)
+            {
+                caller.SetupCaller();
+            }
+            
+            
         }
 
 
@@ -45,13 +79,14 @@ namespace Miner28.UdonUtils.Network
 
                 _Cleanup();
 
-                poolOwners[Array.IndexOf(pool.Pool, obj)] = player.playerId;
+                var oId = Array.IndexOf(pool.Pool, obj);
+                poolOwners[oId] = player.playerId;
 
                 RequestSerialization();
 
                 if (player.isLocal)
                 {
-                    _myCaller = obj.GetComponent<NetworkedEventCaller>();
+                    _myCaller = sceneCallers[oId];
                     Networking.SetOwner(Networking.LocalPlayer, _myCaller.gameObject);
                     Log("I have got myself Caller - Master");
                     OnCallerAssigned();
@@ -91,7 +126,7 @@ namespace Miner28.UdonUtils.Network
                 {
                     if (myId == poolOwners[i])
                     {
-                        _myCaller = pool.Pool[i].GetComponent<NetworkedEventCaller>();
+                        _myCaller = sceneCallers[i];
                         Networking.SetOwner(Networking.LocalPlayer, _myCaller.gameObject);
                         Log($"I have got myself Caller - NonMaster {_myCaller == null}");
                         OnCallerAssigned();
@@ -110,8 +145,8 @@ namespace Miner28.UdonUtils.Network
                 var i = toClean[index];
 
                 var o = pool.Pool[i];
-                var networkedEventCaller = o.GetComponent<NetworkedEventCaller>();
-                if (networkedEventCaller.methodTarget == "")
+                var networkedEventCaller = sceneCallers[i];
+                if (networkedEventCaller.methodTarget == -1)
                 {
                     Log($"Returning {i}");
                     pool.Return(o);
@@ -121,7 +156,7 @@ namespace Miner28.UdonUtils.Network
                 else
                 {
                     Log($"Cleaning up {i}");
-                    networkedEventCaller.methodTarget = "";
+                    networkedEventCaller.methodTarget = -1;
 
                     Networking.SetOwner(Networking.LocalPlayer, o);
                     networkedEventCaller.RequestSerialization();
@@ -131,18 +166,24 @@ namespace Miner28.UdonUtils.Network
             SendCustomEventDelayedFrames(nameof(_Cleanup), 5);
         }
 
-        private static void Log(string log)
+        private void Log(object log)
         {
-            Debug.Log($"<color=#FFFF00>PoolManager</color> {log}");
+            if (debug) Debug.Log($"<color=#FFFF00>PoolManager</color> {log}");
         }
+        
+        private void Log(string log)
+        {
+            if (debug) Debug.Log($"<color=#FFFF00>PoolManager</color> {log}");
+        }
+        
+        
 
         private void OnCallerAssigned()
         {
             foreach (var @interface in sceneInterfaces)
             {
-                Debug.Log(@interface.networkID);
-                @interface.networkManagerInternal = this;
-                @interface.caller = _myCaller;
+                Log($"Assigning Interface {@interface.networkID}");
+                @interface._caller = _myCaller;
                 @interface.OnCallerAssigned();
             }
         }

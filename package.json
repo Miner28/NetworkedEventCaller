@@ -1,19 +1,12 @@
 {
   "name": "com.miner28.networked-event-caller",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "displayName": "NetworkedEventCaller",
-  "description": "TODO",
+  "description": "A UdonSharp preafab that allows you to call events on other UdonBehaviours across the network with support for parameters.",
   "author": {
     "name": "Miner28",
     "url": "https://github.com/Miner28"
   },
-  "samples": [
-    {
-      "displayName": "Example",
-      "description": "Example setup for reading multiple avatars",
-      "path": "Samples~/Example"
-    }
-  ],
   "unity": "2019.4",
   "unityRelease": "31f1",
   "vpmDependencies": {

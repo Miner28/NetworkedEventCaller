@@ -1,99 +1,9 @@
 ﻿using System;
-using System.Runtime.InteropServices;
 using UdonSharp;
 using UnityEngine;
 using VRC.SDK3.Data;
 using VRC.SDKBase;
 using VRC.Udon.Common;
-
-/*
-
-        if (target == SyncTarget.Local)
-        {
-            _MethodReceived(method, arrayParametersLocal, paramTypesLocal);
-            return;
-        }
-
-        if (target != SyncTarget.Others)
-        {
-            _MethodReceived(method, arrayParametersLocal, paramTypesLocal);
-        }
-
-        //TODO largestKnown = networkManager.largest;
-        if (!isQueueRunning && Time.timeSinceLevelLoad - lastSent > 0.05f)
-        {
-            lastSent = Time.timeSinceLevelLoad;
-            sentOutMethods++;
-
-            methodName = method;
-            arrayParameters = arrayParametersLocal;
-            paramTypes = paramTypesLocal;
-
-            EnsureOwner();
-            RequestSerialization();
-
-            Log($"Sent {methodName}");
-        }
-        else
-        {
-            EnqueueMethod(method, arrayParametersLocal, paramTypesLocal);
-        }
-
-    private void EnqueueMethod(string method, string[] stringParameters, Types[] types)
-    {
-        queue = queue.Add(new object[] {method, stringParameters, types});
-        Log($"Adding to queue {method}");
-        if (!isQueueRunning)
-        {
-            SendCustomEventDelayedSeconds("_QueueManager", 0.05f);
-            isQueueRunning = true;
-        }
-    }
-
-
-    public void _QueueManager()
-    {
-        Log($"QueueManager running: {queue.Length}");
-        if (queue.Length != 0) // Check to make sure something magical didn't happen
-        {
-            var current = queue[0];
-            queue = queue.Remove(0);
-
-            methodName = (string) current[0];
-            arrayParameters = (string[]) current[1];
-            paramTypes = (Types[]) current[2];
-
-            Log($"Handling queue for: {methodName}");
-
-            lastSent = Time.timeSinceLevelLoad;
-            sentOutMethods++;
-            //TODO largestKnown = networkManager.largest;
-
-            EnsureOwner();
-            RequestSerialization();
-        }
-
-        if (queue.Length != 0)
-        {
-            SendCustomEventDelayedSeconds("_QueueManager", 0.05f);
-        }
-        else
-        {
-            isQueueRunning = false;
-        }
-    }
-
-    private void EnsureOwner()
-    {
-        if (!Networking.IsOwner(gameObject))
-        {
-            Networking.SetOwner(Networking.LocalPlayer, gameObject);
-        }
-    }
-
-    #endregion
-}
-*/
 
 namespace Miner28.UdonUtils.Network
 {
@@ -101,8 +11,12 @@ namespace Miner28.UdonUtils.Network
     public class NetworkedEventCaller : UdonSharpBehaviour
     {
         [HideInInspector] public NetworkManager networkManager;
-        public NetworkInterface[] sceneInterfaces;
-        public int[] sceneInterfacesIds;
+        [HideInInspector] public NetworkInterface[] sceneInterfaces;
+        [HideInInspector] public int[] sceneInterfacesIds;
+
+        private DataDictionary _methodInfos;
+        private DataList _methodInfosKeys;
+
 
         private bool _debug;
         private bool _startRun;
@@ -110,7 +24,7 @@ namespace Miner28.UdonUtils.Network
 
         #region Constants
 
-        private Type[] _typeMap =
+        private readonly Type[] _typeMap =
         {
             typeof(bool),
             typeof(byte),
@@ -160,7 +74,7 @@ namespace Miner28.UdonUtils.Network
             typeof(Quaternion[]),
         };
 
-        private TokenType[] _tokenMap =
+        private readonly TokenType[] _tokenMap =
         {
             TokenType.Boolean,
             TokenType.Byte,
@@ -206,8 +120,8 @@ namespace Miner28.UdonUtils.Network
             _0x0F = 0x0F,
             _0xE0 = 0xE0,
             _0xFF = 0xFF,
-            _byteOne = 1,
-            _byteZero = 0;
+            BYTE_ONE = 1,
+            BYTE_ZERO = 0;
 
         private const int
             _0xFFFF = 0xFFFF;
@@ -275,12 +189,14 @@ namespace Miner28.UdonUtils.Network
 
         #endregion
 
+        #region InternalVariables
+
         private DataToken[] _parameters = new DataToken[0];
         private int _bufferOffset;
 
         private int _localSentOut;
         [UdonSynced] private int _sentOutMethods;
-        [UdonSynced, NonSerialized] public string methodTarget;
+        [UdonSynced, NonSerialized] public int methodTarget;
         [UdonSynced] private int _scriptTarget;
 
         [UdonSynced] private byte[] _buffer = new byte[0];
@@ -292,6 +208,16 @@ namespace Miner28.UdonUtils.Network
         private DataList _dataQueue = new DataList();
         private bool _queueRunning;
         private float _lastSendTime;
+        private NetworkInterface _targetScript;
+
+        #endregion
+
+
+        internal void SetupCaller()
+        {
+            _methodInfos = networkManager.methodInfos;
+            _methodInfosKeys = networkManager.methodInfosKeys;
+        }
 
         public override void OnPreSerialization()
         {
@@ -307,41 +233,8 @@ namespace Miner28.UdonUtils.Network
             }
         }
 
-        public override void OnDeserialization()
-        {
-            if (_debug)
-                Log($"Deserialization - {methodTarget} - {_buffer.Length} - {_types.Length} - {_lengths.Length}");
 
-            if (string.IsNullOrEmpty(methodTarget)) return;
-
-            if (_localSentOut >= _sentOutMethods && _localSentOut != 0)
-            {
-                if (_debug)
-                    LogWarning(
-                        $"Ignoring deserialization, already sent out Local: {_localSentOut} - Global: {_sentOutMethods}");
-                _localSentOut = _sentOutMethods;
-                return;
-            }
-
-            _localSentOut = _sentOutMethods;
-
-
-            var sIndex = Array.IndexOf(sceneInterfacesIds, _scriptTarget);
-            if (sIndex == -1)
-            {
-                Log("Script target not found unable to receive and process data");
-                return;
-            }
-
-            ReceiveData(); //Convert data from buffer to parameters
-
-            var targetScript = sceneInterfaces[sIndex];
-            targetScript.localTokens = _parameters;
-            targetScript._OnMethodReceived(methodTarget);
-        }
-
-
-        public void _PrepareSend(SyncTarget target, string method, int scriptTarget, DataToken[] data)
+        internal void _PrepareSend(SyncTarget target, string method, int scriptTarget, DataToken[] data)
         {
             var sIndex = Array.IndexOf(sceneInterfacesIds, scriptTarget);
             if (sIndex == -1)
@@ -350,22 +243,46 @@ namespace Miner28.UdonUtils.Network
                 return;
             }
 
-            LogError(method);
+            var methodId = _methodInfosKeys.IndexOf(method);
+            if (methodId == -1)
+            {
+                LogError(
+                    $"<color=#FF0000>Invalid method: {method}</color> - {method} can't send method if method is invalid, check if method is public and marked as [NetworkedMethod]");
+                return;
+            }
 
+            if (_debug)
+            {
+                Log($"Preparing Send - {method} - {methodId} - {scriptTarget} - {sIndex} - {target}");
+            }
 
             if (target != SyncTarget.Others)
             {
-                var targetScript = sceneInterfaces[sIndex];
-                targetScript.localTokens = data;
-                targetScript._OnMethodReceived(method);
-                Log("Sent method locally");
+                var methodKey = _methodInfosKeys[methodId];
+                var methodInfo = _methodInfos[methodKey].DataDictionary;
+
+                _targetScript = sceneInterfaces[sIndex];
+
+                if (methodInfo.TryGetValue("parameters", out var parametersToken))
+                {
+                    if (!parametersToken.IsNull)
+                    {
+                        var parameters = parametersToken.DataList;
+                        for (int i = 0; i < data.Length; i++)
+                        {
+                            SetUdonVariable(parameters[i].String, data[i]);
+                        }
+                    }
+                }
+
+                _targetScript.SendCustomEvent(methodInfo["methodName"].String);
             }
 
 
-            //Limit sending method every 0.1 seconds
-            if (Time.realtimeSinceStartup - _lastSendTime < 0.1f)
+            //Limit sending method every 0.125 seconds - 8 times per second 
+            if (Time.realtimeSinceStartup - _lastSendTime < 0.125f)
             {
-                _methodQueue.Add(method);
+                _methodQueue.Add(methodId);
                 _targetQueue.Add(scriptTarget);
                 _dataQueue.Add(new DataToken(data));
                 if (!_queueRunning)
@@ -377,34 +294,11 @@ namespace Miner28.UdonUtils.Network
                 return;
             }
 
-            SendData(method, scriptTarget, data);
+            SendData(methodId, scriptTarget, data);
             _lastSendTime = Time.realtimeSinceStartup;
         }
 
-        public void _SendQueue()
-        {
-            if (_methodQueue.Count == 0)
-            {
-                _queueRunning = false;
-                return;
-            }
-
-            Log($"Handling queue {_methodQueue.Count}");
-
-            var method = _methodQueue[0].String;
-            var target = _targetQueue[0].Int;
-            var data = (DataToken[]) _dataQueue[0].Reference;
-
-            _methodQueue.RemoveAt(0);
-            _targetQueue.RemoveAt(0);
-            _dataQueue.RemoveAt(0);
-            SendData(method, target, data);
-            _lastSendTime = Time.realtimeSinceStartup;
-
-            SendCustomEventDelayedSeconds(nameof(_SendQueue), 0.1f);
-        }
-
-        private void SendData(string method, int scriptTarget, DataToken[] data)
+        private void SendData(int method, int scriptTarget, DataToken[] data)
         {
             int requiredLength = 0;
             var sIndex = Array.IndexOf(sceneInterfacesIds, scriptTarget);
@@ -419,7 +313,7 @@ namespace Miner28.UdonUtils.Network
             for (int y = 0; y < data.Length; y++)
             {
                 var type = data[y].TokenType;
-                int typeId = -1;
+                int typeId;
                 if (type != TokenType.Reference)
                 {
                     typeId = Array.IndexOf(_tokenMap, type);
@@ -439,8 +333,6 @@ namespace Miner28.UdonUtils.Network
                 {
                     enumType = (Types) typeId;
                 }
-
-                LogError(enumType);
 
                 _types[y] = enumType;
 
@@ -632,12 +524,10 @@ namespace Miner28.UdonUtils.Network
             {
                 var enumType = _types[_iter];
 
-                LogWarning($"Type {enumType}");
-
                 switch (enumType)
                 {
                     case Types.Boolean:
-                        _buffer[_bufferOffset] = data[_iter].Boolean ? _byteOne : _byteZero;
+                        _buffer[_bufferOffset] = data[_iter].Boolean ? BYTE_ONE : BYTE_ZERO;
                         _bufferOffset++;
                         break;
                     case Types.Byte:
@@ -996,7 +886,7 @@ namespace Miner28.UdonUtils.Network
                         _boolA = (bool[]) data[_iter].Reference;
                         for (int j = 0; j < _boolA.Length; j++)
                         {
-                            _buffer[_bufferOffset + j] = _boolA[j] ? _byteOne : _byteZero;
+                            _buffer[_bufferOffset + j] = _boolA[j] ? BYTE_ONE : BYTE_ZERO;
                         }
 
                         _bufferOffset += _boolA.Length;
@@ -1052,7 +942,6 @@ namespace Miner28.UdonUtils.Network
                         for (int j = 0; j < _int32A.Length; j++)
                         {
                             _int32TMP2 = _int32A[j];
-                            LogWarning(_int32TMP2);
                             _buffer[_bufferOffset] = (byte) ((_int32TMP2 >> Bit24) & _0xFF);
                             _buffer[_bufferOffset + 1] = (byte) ((_int32TMP2 >> Bit16) & _0xFF);
                             _buffer[_bufferOffset + 2] = (byte) ((_int32TMP2 >> Bit8) & _0xFF);
@@ -1151,7 +1040,7 @@ namespace Miner28.UdonUtils.Network
                             _bufferOffset += _tempBytes.Length;
                             if (j < _stringA.Length - 1)
                             {
-                                _buffer[_bufferOffset] = _byteZero;
+                                _buffer[_bufferOffset] = BYTE_ZERO;
                                 _bufferOffset++;
                             }
                         }
@@ -1341,6 +1230,75 @@ namespace Miner28.UdonUtils.Network
             RequestSerialization();
         }
 
+        public void _SendQueue()
+        {
+            if (_methodQueue.Count == 0)
+            {
+                _queueRunning = false;
+                return;
+            }
+
+            Log($"Handling queue {_methodQueue.Count}");
+
+            var method = _methodQueue[0].Int;
+            var target = _targetQueue[0].Int;
+            var data = (DataToken[]) _dataQueue[0].Reference;
+
+            _methodQueue.RemoveAt(0);
+            _targetQueue.RemoveAt(0);
+            _dataQueue.RemoveAt(0);
+            SendData(method, target, data);
+            _lastSendTime = Time.realtimeSinceStartup;
+
+            SendCustomEventDelayedSeconds(nameof(_SendQueue), 0.125f);
+        }
+
+        public override void OnDeserialization()
+        {
+            if (_debug)
+                Log($"Deserialization - {methodTarget} - {_buffer.Length} - {_types.Length} - {_lengths.Length}");
+
+            if (methodTarget == -1) return;
+
+            if (_localSentOut >= _sentOutMethods && _localSentOut != 0)
+            {
+                if (_debug)
+                    LogWarning(
+                        $"Ignoring deserialization, already sent out Local: {_localSentOut} - Global: {_sentOutMethods}");
+                _localSentOut = _sentOutMethods;
+                return;
+            }
+
+            _localSentOut = _sentOutMethods;
+
+
+            var sIndex = Array.IndexOf(sceneInterfacesIds, _scriptTarget);
+            if (sIndex == -1)
+            {
+                LogError("Script target not found unable to receive and process data");
+                return;
+            }
+
+            ReceiveData(); //Convert data from buffer to parameters
+
+            _targetScript = sceneInterfaces[sIndex];
+            var methodKey = _methodInfosKeys[methodTarget];
+            var methodInfo = _methodInfos[methodKey].DataDictionary;
+
+            if (methodInfo.TryGetValue("parameters", out var parametersToken))
+            {
+                if (!parametersToken.IsNull)
+                {
+                    var parameters = parametersToken.DataList;
+                    for (int i = 0; i < _parameters.Length; i++)
+                    {
+                        SetUdonVariable(parameters[i].String, _parameters[i]);
+                    }
+                }
+            }
+
+            _targetScript.SendCustomEvent(methodInfo["methodName"].String);
+        }
 
         private void ReceiveData()
         {
@@ -1358,7 +1316,7 @@ namespace Miner28.UdonUtils.Network
                 switch (_types[_iter])
                 {
                     case Types.Boolean:
-                        _parameters[_iter] = _buffer[_bufferOffset] == _byteOne;
+                        _parameters[_iter] = _buffer[_bufferOffset] == BYTE_ONE;
                         _bufferOffset++;
                         break;
                     case Types.Byte:
@@ -1694,7 +1652,7 @@ namespace Miner28.UdonUtils.Network
                             (long) _buffer[_bufferOffset + 4] << Bit24 |
                             (long) _buffer[_bufferOffset + 5] << Bit16 |
                             (long) _buffer[_bufferOffset + 6] << Bit8 |
-                            (long) _buffer[_bufferOffset + 7]));
+                            _buffer[_bufferOffset + 7]));
                         _bufferOffset += 8;
                         break;
                     //Arrays
@@ -1705,7 +1663,7 @@ namespace Miner28.UdonUtils.Network
 
                         for (var i = 0; i < _ushortLength; i++)
                         {
-                            _boolA[i] = _buffer[_bufferOffset] == _byteOne;
+                            _boolA[i] = _buffer[_bufferOffset] == BYTE_ONE;
                             _bufferOffset++;
                         }
 
@@ -2144,6 +2102,170 @@ namespace Miner28.UdonUtils.Network
             }
         }
 
+        private void SetUdonVariable(string variable, DataToken token)
+        {
+            var type = token.TokenType;
+            int typeId;
+            if (type != TokenType.Reference)
+            {
+                typeId = Array.IndexOf(_tokenMap, type);
+            }
+            else
+            {
+                var reference = token.Reference;
+                typeId = Array.IndexOf(_typeMap, reference.GetType());
+            }
+
+            Types enumType;
+            if (typeId == -1)
+                enumType = Types.Null;
+            else
+                enumType = (Types) typeId;
+
+            switch (enumType)
+            {
+                case Types.Boolean:
+                    _targetScript.SetProgramVariable(variable, token.Boolean);
+                    break;
+                case Types.Byte:
+                    _targetScript.SetProgramVariable(variable, token.Byte);
+                    break;
+                case Types.SByte:
+                    _targetScript.SetProgramVariable(variable, token.SByte);
+                    break;
+                case Types.Int16:
+                    _targetScript.SetProgramVariable(variable, token.Short);
+                    break;
+                case Types.UInt16:
+                    _targetScript.SetProgramVariable(variable, token.UShort);
+                    break;
+                case Types.Int32:
+                    _targetScript.SetProgramVariable(variable, token.Int);
+                    break;
+                case Types.UInt32:
+                    _targetScript.SetProgramVariable(variable, token.UInt);
+                    break;
+                case Types.Int64:
+                    _targetScript.SetProgramVariable(variable, token.Long);
+                    break;
+                case Types.UInt64:
+                    _targetScript.SetProgramVariable(variable, token.ULong);
+                    break;
+                case Types.Single:
+                    _targetScript.SetProgramVariable(variable, token.Float);
+                    break;
+                case Types.Double:
+                    _targetScript.SetProgramVariable(variable, token.Double);
+                    break;
+                case Types.String:
+                    _targetScript.SetProgramVariable(variable, token.String);
+                    break;
+                case Types.Decimal:
+                    _targetScript.SetProgramVariable(variable, (decimal) token.Reference);
+                    break;
+                case Types.VRCPlayerApi:
+                    _targetScript.SetProgramVariable(variable, (VRCPlayerApi) token.Reference);
+                    break;
+                case Types.Color:
+                    _targetScript.SetProgramVariable(variable, (Color) token.Reference);
+                    break;
+                case Types.Color32:
+                    _targetScript.SetProgramVariable(variable, (Color32) token.Reference);
+                    break;
+                case Types.Vector2:
+                    _targetScript.SetProgramVariable(variable, (Vector2) token.Reference);
+                    break;
+                case Types.Vector2Int:
+                    _targetScript.SetProgramVariable(variable, (Vector2Int) token.Reference);
+                    break;
+                case Types.Vector3:
+                    _targetScript.SetProgramVariable(variable, (Vector3) token.Reference);
+                    break;
+                case Types.Vector3Int:
+                    _targetScript.SetProgramVariable(variable, (Vector3Int) token.Reference);
+                    break;
+                case Types.Vector4:
+                    _targetScript.SetProgramVariable(variable, (Vector4) token.Reference);
+                    break;
+                case Types.Quaternion:
+                    _targetScript.SetProgramVariable(variable, (Quaternion) token.Reference);
+                    break;
+                case Types.DateTime:
+                    _targetScript.SetProgramVariable(variable, (DateTime) token.Reference);
+                    break;
+                case Types.BooleanA:
+                    _targetScript.SetProgramVariable(variable, (bool[]) token.Reference);
+                    break;
+                case Types.ByteA:
+                    _targetScript.SetProgramVariable(variable, (byte[]) token.Reference);
+                    break;
+                case Types.SByteA:
+                    _targetScript.SetProgramVariable(variable, (sbyte[]) token.Reference);
+                    break;
+                case Types.Int16A:
+                    _targetScript.SetProgramVariable(variable, (short[]) token.Reference);
+                    break;
+                case Types.UInt16A:
+                    _targetScript.SetProgramVariable(variable, (ushort[]) token.Reference);
+                    break;
+                case Types.Int32A:
+                    _targetScript.SetProgramVariable(variable, (int[]) token.Reference);
+                    break;
+                case Types.UInt32A:
+                    _targetScript.SetProgramVariable(variable, (uint[]) token.Reference);
+                    break;
+                case Types.Int64A:
+                    _targetScript.SetProgramVariable(variable, (long[]) token.Reference);
+                    break;
+                case Types.UInt64A:
+                    _targetScript.SetProgramVariable(variable, (ulong[]) token.Reference);
+                    break;
+                case Types.SingleA:
+                    _targetScript.SetProgramVariable(variable, (float[]) token.Reference);
+                    break;
+                case Types.DoubleA:
+                    _targetScript.SetProgramVariable(variable, (double[]) token.Reference);
+                    break;
+                case Types.DecimalA:
+                    _targetScript.SetProgramVariable(variable, (decimal[]) token.Reference);
+                    break;
+                case Types.StringA:
+                    _targetScript.SetProgramVariable(variable, (string[]) token.Reference);
+                    break;
+                case Types.VRCPlayerApiA:
+                    _targetScript.SetProgramVariable(variable, (VRCPlayerApi[]) token.Reference);
+                    break;
+                case Types.ColorA:
+                    _targetScript.SetProgramVariable(variable, (Color[]) token.Reference);
+                    break;
+                case Types.Color32A:
+                    _targetScript.SetProgramVariable(variable, (Color32[]) token.Reference);
+                    break;
+                case Types.Vector2A:
+                    _targetScript.SetProgramVariable(variable, (Vector2[]) token.Reference);
+                    break;
+                case Types.Vector2IntA:
+                    _targetScript.SetProgramVariable(variable, (Vector2Int[]) token.Reference);
+                    break;
+                case Types.Vector3A:
+                    _targetScript.SetProgramVariable(variable, (Vector3[]) token.Reference);
+                    break;
+                case Types.Vector3IntA:
+                    _targetScript.SetProgramVariable(variable, (Vector3Int[]) token.Reference);
+                    break;
+                case Types.Vector4A:
+                    _targetScript.SetProgramVariable(variable, (Vector4[]) token.Reference);
+                    break;
+                case Types.QuaternionA:
+                    _targetScript.SetProgramVariable(variable, (Quaternion[]) token.Reference);
+                    break;
+                case Types.Null:
+                    _targetScript.SetProgramVariable(variable, null);
+                    break;
+            }
+        }
+
+
         private void OnEnable()
         {
             if (_startRun) return;
@@ -2151,19 +2273,20 @@ namespace Miner28.UdonUtils.Network
             _debug = networkManager.debug;
         }
 
-        private void Log(string log) => Debug.Log($"<color=#00FFFF>[NetCaller]</color> {log}");
-        private void Log(object log) => Debug.Log($"<color=#00FFFF>[NetCaller]</color> {log}");
 
-        private void LogWarning(string log) =>
-            Debug.LogWarning($"<color=#FF8000>[WARN]</color> <color=#00FFFF>[NetCaller]</color> {log}");
+        private void Log(object log)
+        {
+            if (_debug) Debug.Log($"<color=#00FFFF>[NetCaller]</color> {log}");
+        }
 
-        private void LogWarning(object log) =>
-            Debug.LogWarning($"<color=#FF8000>[WARN]</color> <color=#00FFFF>[NetCaller]</color> {log}");
+        private void LogWarning(object log)
+        {
+            if (_debug) Debug.LogWarning($"<color=#FF8000>[WARN]</color> <color=#00FFFF>[NetCaller]</color> {log}");
+        }
 
-        private void LogError(string log) =>
+        private void LogError(object log)
+        {
             Debug.LogError($"<color=#FF0000>[WARN]</color> <color=#00FFFF>[NetCaller]</color> {log}");
-
-        private void LogError(object log) =>
-            Debug.LogError($"<color=#FF0000>[WARN]</color> <color=#00FFFF>[NetCaller]</color> {log}");
+        }
     }
 }

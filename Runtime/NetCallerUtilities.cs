@@ -1,5 +1,6 @@
 ﻿using System;
 using UnityEngine;
+using VRC.SDK3.Data;
 using VRC.SDKBase;
 
 namespace Miner28.UdonUtils
@@ -928,6 +929,17 @@ namespace Miner28.UdonUtils
                 }
         
                 return array;
+            }
+            
+            
+            public static DataList ToDataList(this string[] array)
+            {
+                DataList list = new DataList();
+                foreach (var b in array)
+                {
+                    list.Add(new DataToken(b));
+                }
+                return list;
             }
         
 
