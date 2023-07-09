@@ -1,6 +1,7 @@
 # Networked Event Caller
 ## Description
 ### Allows you to call events/methods over the network with ease and support for sending parameters over the network.
+# [Install through VPM](https://miner28.github.io/NetworkedEventCaller/)
 
 # How to use
 ## Scene Setup
