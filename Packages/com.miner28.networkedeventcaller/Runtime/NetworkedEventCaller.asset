@@ -4215,13 +4215,13 @@ MonoBehaviour:
       Data: 
     - Name: $k
       Entry: 1
-      Data: targetScript
+      Data: _targetScript
     - Name: $v
       Entry: 7
       Data: 221|UdonSharp.Compiler.FieldDefinition, UdonSharp.Editor
     - Name: <Name>k__BackingField
       Entry: 1
-      Data: targetScript
+      Data: _targetScript
     - Name: <UserType>k__BackingField
       Entry: 7
       Data: 222|System.RuntimeType, mscorlib
