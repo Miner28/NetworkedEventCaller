@@ -26,8 +26,9 @@
     }
 ```
 
-## To receive we can declare regular C#/U# method
+## To receive we can declare regular C#/U# method and add `[NetworkedMethod]` to mark it as networked.
 ```csharp
+    [NetworkedMethod]
     public void CoolMethod(float time, Vector3 position, Quaternion rotation, VRCPlayerApi player)
     {
         Debug.Log($"{time} - {position} - {rotation} - {player.displayName}");
