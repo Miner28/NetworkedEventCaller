@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using UdonSharp;
 using UnityEngine;
 using VRC.SDK3.Data;
@@ -2098,6 +2098,9 @@ namespace Miner28.UdonUtils.Network
                         _parameters[_iter] = new DataToken(_quaternionA);
                         break;
                     }
+                    case Types.Null:
+                        _parameters[_iter] = new DataToken();
+                        break;
                 }
             }
         }
