@@ -255,7 +255,26 @@ namespace Miner28.UdonUtils.Network
             {
                 Log($"Preparing Send - {method} - {methodId} - {scriptTarget} - {sIndex} - {target}");
             }
+            
 
+            //Limit sending method every 0.125 seconds - 8 times per second 
+            if (Time.realtimeSinceStartup - _lastSendTime < 0.125f)
+            {
+                _methodQueue.Add(methodId);
+                _targetQueue.Add(scriptTarget);
+                _dataQueue.Add(new DataToken(data));
+                if (!_queueRunning)
+                {
+                    _queueRunning = true;
+                    _SendQueue();
+                }
+
+                return;
+            }
+
+            SendData(methodId, scriptTarget, data);
+            _lastSendTime = Time.realtimeSinceStartup;
+            
             if (target != SyncTarget.Others)
             {
                 var methodKey = _methodInfosKeys[methodId];
@@ -277,25 +296,6 @@ namespace Miner28.UdonUtils.Network
 
                 _targetScript.SendCustomEvent(methodInfo["methodName"].String);
             }
-
-
-            //Limit sending method every 0.125 seconds - 8 times per second 
-            if (Time.realtimeSinceStartup - _lastSendTime < 0.125f)
-            {
-                _methodQueue.Add(methodId);
-                _targetQueue.Add(scriptTarget);
-                _dataQueue.Add(new DataToken(data));
-                if (!_queueRunning)
-                {
-                    _queueRunning = true;
-                    _SendQueue();
-                }
-
-                return;
-            }
-
-            SendData(methodId, scriptTarget, data);
-            _lastSendTime = Time.realtimeSinceStartup;
         }
 
         private void SendData(int method, int scriptTarget, DataToken[] data)
