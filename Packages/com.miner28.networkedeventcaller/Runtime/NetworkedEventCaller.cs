@@ -266,7 +266,7 @@ namespace Miner28.UdonUtils.Network
                 if (!_queueRunning)
                 {
                     _queueRunning = true;
-                    _SendQueue();
+                    SendCustomEventDelayedSeconds(nameof(_SendQueue), Time.realtimeSinceStartup - _lastSendTime);
                 }
 
                 return;
