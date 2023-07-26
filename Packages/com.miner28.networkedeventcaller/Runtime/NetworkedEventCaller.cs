@@ -232,8 +232,7 @@ namespace Miner28.UdonUtils.Network
                 LogWarning($"Failed Serialization - {result.byteCount}");
             }
         }
-
-
+        
         internal void _PrepareSend(SyncTarget target, string method, int scriptTarget, DataToken[] data)
         {
             var sIndex = Array.IndexOf(sceneInterfacesIds, scriptTarget);
@@ -262,18 +261,20 @@ namespace Miner28.UdonUtils.Network
             {
                 _methodQueue.Add(methodId);
                 _targetQueue.Add(scriptTarget);
-                _dataQueue.Add(new DataToken(data));
+                DataToken[] dataTokens = new DataToken[data.Length];
+                Array.Copy(data, dataTokens, data.Length);
+                _dataQueue.Add(new DataToken(dataTokens));
                 if (!_queueRunning)
                 {
                     _queueRunning = true;
                     SendCustomEventDelayedSeconds(nameof(_SendQueue), 0.125f - (Time.realtimeSinceStartup - _lastSendTime));
                 }
-
-                return;
             }
-
-            _lastSendTime = Time.realtimeSinceStartup;
-            SendData(methodId, scriptTarget, data);
+            else
+            {
+                _lastSendTime = Time.realtimeSinceStartup;
+                SendData(methodId, scriptTarget, data);
+            }
             
             if (target != SyncTarget.Others)
             {
