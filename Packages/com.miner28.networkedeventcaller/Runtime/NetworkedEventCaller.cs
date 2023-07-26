@@ -272,8 +272,8 @@ namespace Miner28.UdonUtils.Network
                 return;
             }
 
-            SendData(methodId, scriptTarget, data);
             _lastSendTime = Time.realtimeSinceStartup;
+            SendData(methodId, scriptTarget, data);
             
             if (target != SyncTarget.Others)
             {
