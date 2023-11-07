@@ -25,8 +25,9 @@ namespace Miner28.UdonUtils.Network
         [HideInInspector] public int[] sceneInterfacesIds;
         [HideInInspector] public NetworkedEventCaller[] sceneCallers;
 
-        [HideInInspector] public VRCObjectPool pool;
+        [HideInInspector] public GameObject[] pool;
         [HideInInspector] public bool debug;
+        [HideInInspector] public bool useNewSerialization;
 
         [UdonSynced] private int[] poolOwners = new int[100];
         [UdonSynced] private int[] toClean = new int[0];
@@ -37,7 +38,7 @@ namespace Miner28.UdonUtils.Network
         {
             if (_runOnce) return;
 
-            poolOwners = new int[pool.Pool.Length];
+            poolOwners = new int[pool.Length];
             _runOnce = true;
             if (string.IsNullOrEmpty(methodInfosJson))
             {
@@ -75,12 +76,27 @@ namespace Miner28.UdonUtils.Network
             {
                 if (!Networking.IsOwner(gameObject)) Networking.SetOwner(Networking.LocalPlayer, gameObject);
 
-                var obj = pool.TryToSpawn();
+                GameObject obj = null;
+
+                for (int i = 0; i < poolOwners.Length; i++)
+                {
+                    if (poolOwners[i] == 0)
+                    {
+                        obj = pool[i];
+                    }
+                }
 
                 _Cleanup();
 
-                var oId = Array.IndexOf(pool.Pool, obj);
+                if (obj == null)
+                {
+                    Log("No free objects in pool - Unable to assign Caller");
+                    return;
+                }
+                
+                var oId = Array.IndexOf(pool, obj);
                 poolOwners[oId] = player.playerId;
+                obj.SetActive(true);
 
                 RequestSerialization();
 
@@ -108,7 +124,8 @@ namespace Miner28.UdonUtils.Network
                 if (!Networking.IsOwner(gameObject)) Networking.SetOwner(Networking.LocalPlayer, gameObject);
 
                 poolOwners[index] = 0;
-                Networking.SetOwner(Networking.LocalPlayer, pool.Pool[index]);
+                pool[index].SetActive(false);
+                Networking.SetOwner(Networking.LocalPlayer, pool[index]);
 
                 RequestSerialization();
 
@@ -127,11 +144,19 @@ namespace Miner28.UdonUtils.Network
                     if (myId == poolOwners[i])
                     {
                         _myCaller = sceneCallers[i];
+                        
+                        sceneCallers[i].gameObject.SetActive(true);
+                        
                         Networking.SetOwner(Networking.LocalPlayer, _myCaller.gameObject);
                         Log($"I have got myself Caller - NonMaster {_myCaller == null}");
                         OnCallerAssigned();
                     }
                 }
+            }
+
+            for (int i = 0; i < poolOwners.Length; i++)
+            {
+                pool[i].SetActive(poolOwners[i] != 0);
             }
         }
 
@@ -144,19 +169,20 @@ namespace Miner28.UdonUtils.Network
             {
                 var i = toClean[index];
 
-                var o = pool.Pool[i];
+                var o = pool[i];
                 var networkedEventCaller = sceneCallers[i];
-                if (networkedEventCaller.methodTarget == -1)
+                if (networkedEventCaller.syncBuffer.Length == 0)
                 {
                     Log($"Returning {i}");
-                    pool.Return(o);
+                    poolOwners[i] = 0;
+                    pool[i].SetActive(false);
                     toClean = toClean.Remove(index);
                     index--;
                 }
                 else
                 {
                     Log($"Cleaning up {i}");
-                    networkedEventCaller.methodTarget = -1;
+                    networkedEventCaller.syncBuffer = new byte[0];
 
                     Networking.SetOwner(Networking.LocalPlayer, o);
                     networkedEventCaller.RequestSerialization();

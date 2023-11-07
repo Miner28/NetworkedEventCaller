@@ -54,5 +54,13 @@ public enum Types
     Vector3IntA,
     Vector4A,
     QuaternionA,
-    Null
+    Null,
+    
+    //Variable Size
+    Int16V = 100,
+    UInt16V = 110,
+    Int32V = 120,
+    UInt32V = 130,
+    Int64V = 140,
+    UInt64V = 150,
 }

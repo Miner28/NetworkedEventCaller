@@ -1,3 +1,5 @@
+#define NETCALLER_USE_VARIABLE_SERIALIZATION
+#define NETCALLER_DEBUG
 using System;
 using UdonSharp;
 using UnityEngine;
@@ -124,8 +126,16 @@ namespace Miner28.UdonUtils.Network
             BYTE_ZERO = 0;
 
         private const int
-            _0xFFFF = 0xFFFF;
+            _0xFFFF = 0xFFFF,
+            _0x7FFF = 0x7FFF;
 
+        private const byte
+            Int16V = (byte) Types.Int16V,
+            UInt16V = (byte) Types.UInt16V,
+            Int32V = (byte) Types.Int32V,
+            UInt32V = (byte) Types.UInt32V,
+            Int64V = (byte) Types.Int64V,
+            UInt64V = (byte) Types.UInt64V;
         #endregion
 
         #region StorageVariables
@@ -134,7 +144,6 @@ namespace Miner28.UdonUtils.Network
         private byte _byteTmp;
         private sbyte _sbyteValue;
         private short _int16Value;
-        private ushort _ushortLength;
         private ushort _uint16Value;
         private int _int32TMP;
         private int _int32TMP2;
@@ -193,15 +202,11 @@ namespace Miner28.UdonUtils.Network
 
         private DataToken[] _parameters = new DataToken[0];
         private int _bufferOffset;
-
         private int _localSentOut;
-        [UdonSynced] private int _sentOutMethods;
-        [UdonSynced, NonSerialized] public int methodTarget;
-        [UdonSynced] private int _scriptTarget;
-
-        [UdonSynced] private byte[] _buffer = new byte[0];
-        [UdonSynced] private Types[] _types = new Types[0];
-        [UdonSynced] private ushort[] _lengths = new ushort[0];
+        
+        [UdonSynced] [NonSerialized] public byte[] syncBuffer = new byte[0];
+        
+        private DataList syncBufferBuilder = new DataList();
 
         private DataList _methodQueue = new DataList();
         private DataList _targetQueue = new DataList();
@@ -222,7 +227,10 @@ namespace Miner28.UdonUtils.Network
         public override void OnPreSerialization()
         {
             if (_debug)
-                Log($"PreSerialization - {methodTarget} - {_buffer.Length} - {_types.Length} - {_lengths.Length}");
+            {
+                syncBuffer.ReadVariableInt(0, out int target);
+                Log($"PreSerialization - {target} - {syncBuffer.Length}");
+            }
         }
 
         public override void OnPostSerialization(SerializationResult result)
@@ -233,8 +241,11 @@ namespace Miner28.UdonUtils.Network
             }
         }
         
-        internal void _PrepareSend(SyncTarget target, string method, int scriptTarget, DataToken[] data)
+        internal void _PrepareSend(int intTarget, string method, int scriptTarget, DataToken[] data)
         {
+            var target = (SyncTarget) intTarget;
+            if (intTarget > 100) intTarget -= 100;
+
             var sIndex = Array.IndexOf(sceneInterfacesIds, scriptTarget);
             if (sIndex == -1)
             {
@@ -276,7 +287,7 @@ namespace Miner28.UdonUtils.Network
                 SendData(methodId, scriptTarget, data);
             }
             
-            if (target != SyncTarget.Others)
+            if (target == SyncTarget.All || target == SyncTarget.Local)
             {
                 var methodKey = _methodInfosKeys[methodId];
                 var methodInfo = _methodInfos[methodKey].DataDictionary;
@@ -297,23 +308,33 @@ namespace Miner28.UdonUtils.Network
 
                 _targetScript.SendCustomEvent(methodInfo["methodName"].String);
             }
+            
+            
         }
 
         private void SendData(int method, int scriptTarget, DataToken[] data)
         {
-            int requiredLength = 0;
             var sIndex = Array.IndexOf(sceneInterfacesIds, scriptTarget);
             if (sIndex == -1)
             {
                 LogError($"Invalid script target: {scriptTarget} - {method} can't send method if target is invalid");
                 return;
             }
-
-            if (_types.Length != data.Length) _types = new Types[data.Length];
-            if (_lengths.Length != data.Length) _lengths = new ushort[data.Length];
-            for (int y = 0; y < data.Length; y++)
+            
+            syncBufferBuilder.Clear();
+            
+            _localSentOut++;
+            syncBufferBuilder.AddVariableInt(Convert.ToUInt32(data.Length));
+            syncBufferBuilder.AddVariableInt(method);
+            syncBufferBuilder.AddVariableInt(scriptTarget);
+            syncBufferBuilder.AddVariableInt(_localSentOut);
+            
+            
+            for (_iter = 0; _iter < data.Length; _iter++)
             {
-                var type = data[y].TokenType;
+                LogWarning($"Sending {data[_iter].TokenType} - Iter: {_iter}");
+                
+                var type = data[_iter].TokenType;
                 int typeId;
                 if (type != TokenType.Reference)
                 {
@@ -321,277 +342,283 @@ namespace Miner28.UdonUtils.Network
                 }
                 else
                 {
-                    var reference = data[y].Reference;
+                    var reference = data[_iter].Reference;
                     typeId = Array.IndexOf(_typeMap, reference.GetType());
+                    LogWarning($"Reference: {reference} - Type: {reference.GetType()} - TypeId: {typeId}");
                 }
 
+                LogWarning($"Type: {type} - TypeId: {typeId}");
                 Types enumType;
                 if (typeId == -1)
                 {
                     enumType = Types.Null;
+                    typeId = (int) Types.Null;
                 }
                 else
                 {
                     enumType = (Types) typeId;
                 }
+                
+                LogWarning($"EnumType: {enumType} - TypeId: {typeId}");
 
-                _types[y] = enumType;
 
-                ushort length;
-                switch (enumType)
+                if (typeId < (int) Types.Int16 || typeId > (int) Types.UInt64)
                 {
-                    case Types.Boolean:
-                    case Types.Byte:
-                    case Types.SByte:
-                        requiredLength += 1;
-                        break;
-                    case Types.Int16:
-                    case Types.UInt16:
-                        requiredLength += 2;
-                        break;
-                    case Types.Int32:
-                    case Types.UInt32:
-                        requiredLength += 4;
-                        break;
-                    case Types.Int64:
-                    case Types.UInt64:
-                        requiredLength += 8;
-                        break;
-                    case Types.Single:
-                        requiredLength += 4;
-                        break;
-                    case Types.Double:
-                        requiredLength += 8;
-                        break;
-                    case Types.Decimal:
-                        requiredLength += 16;
-                        break;
-                    case Types.String:
-                        length = (ushort) BitConverter.GetStringSizeInBytes(data[y].String);
-                        requiredLength += length;
-                        _lengths[y] = length;
-                        break;
-                    case Types.VRCPlayerApi:
-                        requiredLength += 4;
-                        break;
-                    case Types.Color:
-                        requiredLength += 16;
-                        break;
-                    case Types.Color32:
-                        requiredLength += 4;
-                        break;
-                    case Types.Vector2:
-                    case Types.Vector2Int:
-                        requiredLength += 8;
-                        break;
-                    case Types.Vector3:
-                    case Types.Vector3Int:
-                        requiredLength += 12;
-                        break;
-                    case Types.Vector4:
-                    case Types.Quaternion:
-                        requiredLength += 16;
-                        break;
-                    case Types.DateTime:
-                        requiredLength += 8;
-                        break;
-                    //Arrays
-                    case Types.BooleanA:
-                        length = (ushort) ((bool[]) data[y].Reference).Length;
-                        requiredLength += length;
-                        _lengths[y] = length;
-                        break;
-                    case Types.ByteA:
-                        length = (ushort) ((byte[]) data[y].Reference).Length;
-                        requiredLength += length;
-                        _lengths[y] = length;
-                        break;
-                    case Types.SByteA:
-                        length = (ushort) ((sbyte[]) data[y].Reference).Length;
-                        requiredLength += length;
-                        _lengths[y] = length;
-                        break;
-                    case Types.Int16A:
-                        length = (ushort) ((short[]) data[y].Reference).Length;
-                        requiredLength += length * 2;
-                        _lengths[y] = length;
-                        break;
-                    case Types.UInt16A:
-                        length = (ushort) ((ushort[]) data[y].Reference).Length;
-                        requiredLength += length * 2;
-                        _lengths[y] = length;
-                        break;
-                    case Types.Int32A:
-                        length = (ushort) ((int[]) data[y].Reference).Length;
-                        requiredLength += length * 4;
-                        _lengths[y] = length;
-                        break;
-                    case Types.UInt32A:
-                        length = (ushort) ((uint[]) data[y].Reference).Length;
-                        requiredLength += length * 4;
-                        _lengths[y] = length;
-                        break;
-                    case Types.Int64A:
-                        length = (ushort) ((long[]) data[y].Reference).Length;
-                        requiredLength += length * 8;
-                        _lengths[y] = length;
-                        break;
-                    case Types.UInt64A:
-                        length = (ushort) ((ulong[]) data[y].Reference).Length;
-                        requiredLength += length * 8;
-                        _lengths[y] = length;
-                        break;
-                    case Types.SingleA:
-                        length = (ushort) ((float[]) data[y].Reference).Length;
-                        requiredLength += length * 4;
-                        _lengths[y] = length;
-                        break;
-                    case Types.DoubleA:
-                        length = (ushort) ((double[]) data[y].Reference).Length;
-                        requiredLength += length * 8;
-                        _lengths[y] = length;
-                        break;
-                    case Types.DecimalA:
-                        length = (ushort) ((decimal[]) data[y].Reference).Length;
-                        requiredLength += length * 16;
-                        _lengths[y] = length;
-                        break;
-                    case Types.StringA:
-                    {
-                        _stringA = (string[]) data[y].Reference;
-                        length = (ushort) (_stringA.Length - 1);
-                        for (int i = 0; i < _stringA.Length; i++)
-                        {
-                            length += (ushort) BitConverter.GetStringSizeInBytes(_stringA[i]);
-                        }
-
-                        requiredLength += length;
-                        _lengths[y] = length;
-                        break;
-                    }
-                    case Types.VRCPlayerApiA:
-                        length = (ushort) ((VRCPlayerApi[]) data[y].Reference).Length;
-                        requiredLength += length * 4;
-                        _lengths[y] = length;
-                        break;
-                    case Types.ColorA:
-                        length = (ushort) ((Color[]) data[y].Reference).Length;
-                        requiredLength += length * 16;
-                        _lengths[y] = length;
-                        break;
-                    case Types.Color32A:
-                        length = (ushort) ((Color32[]) data[y].Reference).Length;
-                        requiredLength += length * 4;
-                        _lengths[y] = length;
-                        break;
-                    case Types.Vector2A:
-                        length = (ushort) ((Vector2[]) data[y].Reference).Length;
-                        requiredLength += length * 8;
-                        _lengths[y] = length;
-                        break;
-                    case Types.Vector2IntA:
-                        length = (ushort) ((Vector2Int[]) data[y].Reference).Length;
-                        requiredLength += length * 8;
-                        _lengths[y] = length;
-                        break;
-                    case Types.Vector3A:
-                        length = (ushort) ((Vector3[]) data[y].Reference).Length;
-                        requiredLength += length * 12;
-                        _lengths[y] = length;
-                        break;
-                    case Types.Vector3IntA:
-                        length = (ushort) ((Vector3Int[]) data[y].Reference).Length;
-                        requiredLength += length * 12;
-                        _lengths[y] = length;
-                        break;
-                    case Types.Vector4A:
-                        length = (ushort) ((Vector4[]) data[y].Reference).Length;
-                        requiredLength += length * 16;
-                        _lengths[y] = length;
-                        break;
-                    case Types.QuaternionA:
-                        length = (ushort) ((Quaternion[]) data[y].Reference).Length;
-                        requiredLength += length * 16;
-                        _lengths[y] = length;
-                        break;
+                    syncBufferBuilder.Add((byte) typeId);
                 }
-            }
 
-            if (_buffer.Length != requiredLength) _buffer = new byte[requiredLength];
-
-            _bufferOffset = 0;
-
-            for (_iter = 0; _iter < data.Length; _iter++)
-            {
-                var enumType = _types[_iter];
 
                 switch (enumType)
                 {
                     case Types.Boolean:
-                        _buffer[_bufferOffset] = data[_iter].Boolean ? BYTE_ONE : BYTE_ZERO;
-                        _bufferOffset++;
+                        syncBufferBuilder.Add(data[_iter].Boolean ? BYTE_ONE : BYTE_ZERO);
                         break;
                     case Types.Byte:
-                        _buffer[_bufferOffset] = data[_iter].Byte;
-                        _bufferOffset++;
+                        syncBufferBuilder.Add(data[_iter].Byte);
                         break;
                     case Types.SByte:
                         _sbyteValue = data[_iter].SByte;
-                        _buffer[_bufferOffset] = (byte) (_sbyteValue < 0 ? (_sbyteValue + _0xFF) : _sbyteValue);
-                        _bufferOffset++;
+                        syncBufferBuilder.Add((byte) (_sbyteValue < 0 ? (_sbyteValue + _0xFF) : _sbyteValue));
                         break;
                     case Types.Int16:
                         _int16Value = data[_iter].Short;
                         _int32TMP = _int16Value < 0 ? (_int16Value + 0xFFFF) : _int16Value;
-                        _buffer[_bufferOffset] = (byte) (_int32TMP >> Bit8);
-                        _buffer[_bufferOffset + 1] = (byte) (_int32TMP & 0xFF);
-                        _bufferOffset += 2;
+
+                        if (_int32TMP == 0)
+                        {
+                            syncBufferBuilder.Add(Int16V);
+                        }
+                        else if (_int32TMP < _0xFF)
+                        {
+                            syncBufferBuilder.Add(Convert.ToByte(Int16V + 1));
+                            syncBufferBuilder.Add(Convert.ToByte( _int32TMP));
+                        }
+                        else
+                        {
+                            syncBufferBuilder.Add(Convert.ToByte(UInt16V+2));
+                            syncBufferBuilder.Add(Convert.ToByte((_int32TMP >> Bit8) & _0xFF));
+                            syncBufferBuilder.Add(Convert.ToByte(_int32TMP & _0xFF));
+                        }
                         break;
                     case Types.UInt16:
                         _uint16Value = data[_iter].UShort;
-                        _buffer[_bufferOffset] = (byte) ((_uint16Value >> Bit8));
-                        _buffer[_bufferOffset + 1] = (byte) (_uint16Value & 0xFF);
-                        _bufferOffset += 2;
+                        
+                        if (_uint16Value < _0xFF)
+                        {
+                            syncBufferBuilder.Add(UInt16V);
+                            syncBufferBuilder.Add((byte) _uint16Value);
+                        }
+                        else
+                        {
+                            syncBufferBuilder.Add(Convert.ToByte(UInt16V+1));
+                            syncBufferBuilder.Add((byte) ((_uint16Value >> Bit8) & _0xFF));
+                            syncBufferBuilder.Add((byte) (_uint16Value & _0xFF));
+                        }
                         break;
                     case Types.Int32:
                         _int32TMP2 = data[_iter].Int;
-                        _buffer[_bufferOffset] = (byte) ((_int32TMP2 >> Bit24) & 0xFF);
-                        _buffer[_bufferOffset + 1] = (byte) ((_int32TMP2 >> Bit16) & 0xFF);
-                        _buffer[_bufferOffset + 2] = (byte) ((_int32TMP2 >> Bit8) & 0xFF);
-                        _buffer[_bufferOffset + 3] = (byte) (_int32TMP2 & 0xFF);
-                        _bufferOffset += 4;
+                        
+                        if (_int32TMP2 < _0xFF)
+                        {
+                            syncBufferBuilder.Add(Int32V);
+                            syncBufferBuilder.Add((byte) _int32TMP2);
+                        }
+                        else if (_int32TMP2 < _0xFFFF)
+                        {
+                            syncBufferBuilder.Add(Convert.ToByte(Int32V+1));
+                            syncBufferBuilder.Add((byte) ((_int32TMP2 >> Bit8) & _0xFF));
+                            syncBufferBuilder.Add((byte) (_int32TMP2 & _0xFF));
+                        }
+                        else if (_int32TMP2 < 0xFFFFFF)
+                        {
+                            syncBufferBuilder.Add(Convert.ToByte(Int32V+2));
+                            syncBufferBuilder.Add((byte) ((_int32TMP2 >> Bit16) & _0xFF));
+                            syncBufferBuilder.Add((byte) ((_int32TMP2 >> Bit8) & _0xFF));
+                            syncBufferBuilder.Add((byte) (_int32TMP2 & _0xFF));
+                        }
+                        else
+                        {
+                            syncBufferBuilder.Add(Convert.ToByte(Int32V+3));
+                            syncBufferBuilder.Add((byte) ((_int32TMP2 >> Bit24) & _0xFF));
+                            syncBufferBuilder.Add((byte) ((_int32TMP2 >> Bit16) & _0xFF));
+                            syncBufferBuilder.Add((byte) ((_int32TMP2 >> Bit8) & _0xFF));
+                            syncBufferBuilder.Add((byte) (_int32TMP2 & _0xFF));
+                        }
+                        
                         break;
                     case Types.UInt32:
                         _uint32Value = data[_iter].UInt;
-                        _buffer[_bufferOffset] = (byte) ((_uint32Value >> Bit24) & 255u);
-                        _buffer[_bufferOffset + 1] = (byte) ((_uint32Value >> Bit16) & 255u);
-                        _buffer[_bufferOffset + 2] = (byte) ((_uint32Value >> Bit8) & 255u);
-                        _buffer[_bufferOffset + 3] = (byte) (_uint32Value & 255u);
-                        _bufferOffset += 4;
+                        
+                        if (_uint32Value < _0xFF)
+                        {
+                            syncBufferBuilder.Add(UInt32V);
+                            syncBufferBuilder.Add((byte) _uint32Value);
+                        }
+                        else if (_uint32Value < _0xFFFF)
+                        {
+                            syncBufferBuilder.Add(Convert.ToByte(UInt32V+1));
+                            syncBufferBuilder.Add((byte) ((_uint32Value >> Bit8) & _0xFF));
+                            syncBufferBuilder.Add((byte) (_uint32Value & _0xFF));
+                        }
+                        else if (_uint32Value < 0xFFFFFF)
+                        {
+                            syncBufferBuilder.Add(Convert.ToByte(UInt32V+2));
+                            syncBufferBuilder.Add((byte) ((_uint32Value >> Bit16) & _0xFF));
+                            syncBufferBuilder.Add((byte) ((_uint32Value >> Bit8) & _0xFF));
+                            syncBufferBuilder.Add((byte) (_uint32Value & _0xFF));
+                        }
+                        else
+                        {
+                            syncBufferBuilder.Add(Convert.ToByte(UInt32V+3));
+                            syncBufferBuilder.Add((byte) ((_uint32Value >> Bit24) & _0xFF));
+                            syncBufferBuilder.Add((byte) ((_uint32Value >> Bit16) & _0xFF));
+                            syncBufferBuilder.Add((byte) ((_uint32Value >> Bit8) & _0xFF));
+                            syncBufferBuilder.Add((byte) (_uint32Value & _0xFF));
+                        }
                         break;
                     case Types.Int64:
                         _int64Value = data[_iter].Long;
-                        _buffer[_bufferOffset] = (byte) ((_int64Value >> Bit56) & 0xFF);
-                        _buffer[_bufferOffset + 1] = (byte) ((_int64Value >> Bit48) & 0xFF);
-                        _buffer[_bufferOffset + 2] = (byte) ((_int64Value >> Bit40) & 0xFF);
-                        _buffer[_bufferOffset + 3] = (byte) ((_int64Value >> Bit32) & 0xFF);
-                        _buffer[_bufferOffset + 4] = (byte) ((_int64Value >> Bit24) & 0xFF);
-                        _buffer[_bufferOffset + 5] = (byte) ((_int64Value >> Bit16) & 0xFF);
-                        _buffer[_bufferOffset + 6] = (byte) ((_int64Value >> Bit8) & 0xFF);
-                        _buffer[_bufferOffset + 7] = (byte) (_int64Value & 0xFF);
-                        _bufferOffset += 8;
+
+                        if (_int64Value < _0xFF)
+                        {
+                            syncBufferBuilder.Add(Int64V);
+                            syncBufferBuilder.Add((byte) _int64Value);
+                        }
+                        else if (_int64Value < _0xFFFF)
+                        {
+                            syncBufferBuilder.Add(Convert.ToByte(Int64V+1));
+                            syncBufferBuilder.Add((byte) ((_int64Value >> Bit8) & _0xFF));
+                            syncBufferBuilder.Add((byte) (_int64Value & _0xFF));
+                        }
+                        else if (_int64Value < 0xFFFFFF)
+                        {
+                            syncBufferBuilder.Add(Convert.ToByte(Int64V+2));
+                            syncBufferBuilder.Add((byte) ((_int64Value >> Bit16) & _0xFF));
+                            syncBufferBuilder.Add((byte) ((_int64Value >> Bit8) & _0xFF));
+                            syncBufferBuilder.Add((byte) (_int64Value & _0xFF));
+                        }
+                        else if (_int64Value < 0xFFFFFFFF)
+                        {
+                            syncBufferBuilder.Add(Convert.ToByte(Int64V+3));
+                            syncBufferBuilder.Add((byte) ((_int64Value >> Bit24) & _0xFF));
+                            syncBufferBuilder.Add((byte) ((_int64Value >> Bit16) & _0xFF));
+                            syncBufferBuilder.Add((byte) ((_int64Value >> Bit8) & _0xFF));
+                            syncBufferBuilder.Add((byte) (_int64Value & _0xFF));
+                        }
+                        else if (_int64Value < 0xFFFFFFFFFF)
+                        {
+                            syncBufferBuilder.Add(Convert.ToByte(Int64V+4));
+                            syncBufferBuilder.Add((byte) ((_int64Value >> Bit32) & _0xFF));
+                            syncBufferBuilder.Add((byte) ((_int64Value >> Bit24) & _0xFF));
+                            syncBufferBuilder.Add((byte) ((_int64Value >> Bit16) & _0xFF));
+                            syncBufferBuilder.Add((byte) ((_int64Value >> Bit8) & _0xFF));
+                            syncBufferBuilder.Add((byte) (_int64Value & _0xFF));
+                        }
+                        else if (_int64Value < 0xFFFFFFFFFFFF)
+                        {
+                            syncBufferBuilder.Add(Convert.ToByte(Int64V+5));
+                            syncBufferBuilder.Add((byte) ((_int64Value >> Bit40) & _0xFF));
+                            syncBufferBuilder.Add((byte) ((_int64Value >> Bit32) & _0xFF));
+                            syncBufferBuilder.Add((byte) ((_int64Value >> Bit24) & _0xFF));
+                            syncBufferBuilder.Add((byte) ((_int64Value >> Bit16) & _0xFF));
+                            syncBufferBuilder.Add((byte) ((_int64Value >> Bit8) & _0xFF));
+                            syncBufferBuilder.Add((byte) (_int64Value & _0xFF));
+                        }
+                        else if (_int64Value < 0xFFFFFFFFFFFFFF)
+                        {
+                            syncBufferBuilder.Add(Convert.ToByte(Int64V+6));
+                            syncBufferBuilder.Add((byte) ((_int64Value >> Bit48) & _0xFF));
+                            syncBufferBuilder.Add((byte) ((_int64Value >> Bit40) & _0xFF));
+                            syncBufferBuilder.Add((byte) ((_int64Value >> Bit32) & _0xFF));
+                            syncBufferBuilder.Add((byte) ((_int64Value >> Bit24) & _0xFF));
+                            syncBufferBuilder.Add((byte) ((_int64Value >> Bit16) & _0xFF));
+                            syncBufferBuilder.Add((byte) ((_int64Value >> Bit8) & _0xFF));
+                            syncBufferBuilder.Add((byte) (_int64Value & _0xFF));
+                        }
+                        else
+                        {
+                            syncBufferBuilder.Add(Convert.ToByte(Int64V+7));
+                            syncBufferBuilder.Add((byte) ((_int64Value >> Bit56) & _0xFF));
+                            syncBufferBuilder.Add((byte) ((_int64Value >> Bit48) & _0xFF));
+                            syncBufferBuilder.Add((byte) ((_int64Value >> Bit40) & _0xFF));
+                            syncBufferBuilder.Add((byte) ((_int64Value >> Bit32) & _0xFF));
+                            syncBufferBuilder.Add((byte) ((_int64Value >> Bit24) & _0xFF));
+                            syncBufferBuilder.Add((byte) ((_int64Value >> Bit16) & _0xFF));
+                            syncBufferBuilder.Add((byte) ((_int64Value >> Bit8) & _0xFF));
+                            syncBufferBuilder.Add((byte) (_int64Value & _0xFF));
+                        }
                         break;
                     case Types.UInt64:
                         _uint64Value = data[_iter].ULong;
-                        _buffer[_bufferOffset] = (byte) ((_uint64Value >> Bit56) & 255ul);
-                        _buffer[_bufferOffset + 1] = (byte) ((_uint64Value >> Bit48) & 255ul);
-                        _buffer[_bufferOffset + 2] = (byte) ((_uint64Value >> Bit40) & 255ul);
-                        _buffer[_bufferOffset + 3] = (byte) ((_uint64Value >> Bit32) & 255ul);
-                        _buffer[_bufferOffset + 4] = (byte) ((_uint64Value >> Bit24) & 255ul);
-                        _buffer[_bufferOffset + 5] = (byte) ((_uint64Value >> Bit16) & 255ul);
-                        _buffer[_bufferOffset + 6] = (byte) ((_uint64Value >> Bit8) & 255ul);
-                        _buffer[_bufferOffset + 7] = (byte) (_uint64Value & 255ul);
-                        _bufferOffset += 8;
+                        if (_uint64Value < _0xFF)
+                        {
+                            syncBufferBuilder.Add(UInt64V);
+                            syncBufferBuilder.Add((byte) _uint64Value);
+                        }
+                        else if (_uint64Value < _0xFFFF)
+                        {
+                            syncBufferBuilder.Add(Convert.ToByte(UInt64V+1));
+                            syncBufferBuilder.Add((byte) ((_uint64Value >> Bit8) & _0xFF));
+                            syncBufferBuilder.Add((byte) (_uint64Value & _0xFF));
+                        }
+                        else if (_uint64Value < 0xFFFFFF)
+                        {
+                            syncBufferBuilder.Add(Convert.ToByte(UInt64V+2));
+                            syncBufferBuilder.Add((byte) ((_uint64Value >> Bit16) & _0xFF));
+                            syncBufferBuilder.Add((byte) ((_uint64Value >> Bit8) & _0xFF));
+                            syncBufferBuilder.Add((byte) (_uint64Value & _0xFF));
+                        }
+                        else if (_uint64Value < 0xFFFFFFFF)
+                        {
+                            syncBufferBuilder.Add(Convert.ToByte(UInt64V + 3));
+                            syncBufferBuilder.Add((byte) ((_uint64Value >> Bit24) & _0xFF));
+                            syncBufferBuilder.Add((byte) ((_uint64Value >> Bit16) & _0xFF));
+                            syncBufferBuilder.Add((byte) ((_uint64Value >> Bit8) & _0xFF));
+                            syncBufferBuilder.Add((byte) (_uint64Value & _0xFF));
+                        }
+                        else if (_uint64Value < 0xFFFFFFFFFF)
+                        {
+                            syncBufferBuilder.Add(Convert.ToByte(UInt64V+4));
+                            syncBufferBuilder.Add((byte) ((_uint64Value >> Bit32) & _0xFF));
+                            syncBufferBuilder.Add((byte) ((_uint64Value >> Bit24) & _0xFF));
+                            syncBufferBuilder.Add((byte) ((_uint64Value >> Bit16) & _0xFF));
+                            syncBufferBuilder.Add((byte) ((_uint64Value >> Bit8) & _0xFF));
+                            syncBufferBuilder.Add((byte) (_uint64Value & _0xFF));
+                        }
+                        else if (_uint64Value < 0xFFFFFFFFFFFF)
+                        {
+                            syncBufferBuilder.Add(Convert.ToByte(UInt64V + 5));
+                            syncBufferBuilder.Add((byte) ((_uint64Value >> Bit40) & _0xFF));
+                            syncBufferBuilder.Add((byte) ((_uint64Value >> Bit32) & _0xFF));
+                            syncBufferBuilder.Add((byte) ((_uint64Value >> Bit24) & _0xFF));
+                            syncBufferBuilder.Add((byte) ((_uint64Value >> Bit16) & _0xFF));
+                            syncBufferBuilder.Add((byte) ((_uint64Value >> Bit8) & _0xFF));
+                            syncBufferBuilder.Add((byte) (_uint64Value & _0xFF));
+                        }
+                        else if (_uint64Value < 0xFFFFFFFFFFFFFF)
+                        {
+                            syncBufferBuilder.Add(Convert.ToByte(UInt64V + 6));
+                            syncBufferBuilder.Add((byte) ((_uint64Value >> Bit48) & _0xFF));
+                            syncBufferBuilder.Add((byte) ((_uint64Value >> Bit40) & _0xFF));
+                            syncBufferBuilder.Add((byte) ((_uint64Value >> Bit32) & _0xFF));
+                            syncBufferBuilder.Add((byte) ((_uint64Value >> Bit24) & _0xFF));
+                            syncBufferBuilder.Add((byte) ((_uint64Value >> Bit16) & _0xFF));
+                            syncBufferBuilder.Add((byte) ((_uint64Value >> Bit8) & _0xFF));
+                            syncBufferBuilder.Add((byte) (_uint64Value & _0xFF));
+                        }
+                        else
+                        {
+                            syncBufferBuilder.Add(Convert.ToByte(UInt64V + 7));
+                            syncBufferBuilder.Add((byte) ((_uint64Value >> Bit56) & _0xFF));
+                            syncBufferBuilder.Add((byte) ((_uint64Value >> Bit48) & _0xFF));
+                            syncBufferBuilder.Add((byte) ((_uint64Value >> Bit40) & _0xFF));
+                            syncBufferBuilder.Add((byte) ((_uint64Value >> Bit32) & _0xFF));
+                            syncBufferBuilder.Add((byte) ((_uint64Value >> Bit24) & _0xFF));
+                            syncBufferBuilder.Add((byte) ((_uint64Value >> Bit16) & _0xFF));
+                            syncBufferBuilder.Add((byte) ((_uint64Value >> Bit8) & _0xFF));
+                            syncBufferBuilder.Add((byte) (_uint64Value & _0xFF));
+                        }
+
                         break;
                     case Types.Single:
                     {
@@ -645,11 +672,12 @@ namespace Miner28.UdonUtils.Network
                             _uintTmp |= Convert.ToUInt32(_singleValue * 0x800000) & FloatFracMask;
                         }
 
-                        _buffer[_bufferOffset] = (byte) ((_uintTmp >> Bit24) & 255u);
-                        _buffer[_bufferOffset + 1] = (byte) ((_uintTmp >> Bit16) & 255u);
-                        _buffer[_bufferOffset + 2] = (byte) ((_uintTmp >> Bit8) & 255u);
-                        _buffer[_bufferOffset + 3] = (byte) (_uintTmp & 255u);
-                        _bufferOffset += 4;
+                        
+                        syncBufferBuilder.Add((byte) ((_uintTmp >> Bit24) & 255u));
+                        syncBufferBuilder.Add((byte) ((_uintTmp >> Bit16) & 255u));
+                        syncBufferBuilder.Add((byte) ((_uintTmp >> Bit8) & 255u));
+                        syncBufferBuilder.Add((byte) (_uintTmp & 255u));
+                        
                         break;
                     }
                     case Types.Double:
@@ -703,71 +731,76 @@ namespace Miner28.UdonUtils.Network
                             doubleTmp |= Convert.ToUInt64(exp << 52) & DoubleExpMask;
                             doubleTmp |= Convert.ToUInt64(_doubleValue * 0x10000000000000) & DoubleFracMask;
                         }
-
-                        _buffer[_bufferOffset] = (byte) ((doubleTmp >> Bit56) & 255ul);
-                        _buffer[_bufferOffset + 1] = (byte) ((doubleTmp >> Bit48) & 255ul);
-                        _buffer[_bufferOffset + 2] = (byte) ((doubleTmp >> Bit40) & 255ul);
-                        _buffer[_bufferOffset + 3] = (byte) ((doubleTmp >> Bit32) & 255ul);
-                        _buffer[_bufferOffset + 4] = (byte) ((doubleTmp >> Bit24) & 255ul);
-                        _buffer[_bufferOffset + 5] = (byte) ((doubleTmp >> Bit16) & 255ul);
-                        _buffer[_bufferOffset + 6] = (byte) ((doubleTmp >> Bit8) & 255ul);
-                        _buffer[_bufferOffset + 7] = (byte) (doubleTmp & 255ul);
-                        _bufferOffset += 8;
+                        
+                        syncBufferBuilder.Add((byte) ((doubleTmp >> Bit56) & 255ul));
+                        syncBufferBuilder.Add((byte) ((doubleTmp >> Bit48) & 255ul));
+                        syncBufferBuilder.Add((byte) ((doubleTmp >> Bit40) & 255ul));
+                        syncBufferBuilder.Add((byte) ((doubleTmp >> Bit32) & 255ul));
+                        syncBufferBuilder.Add((byte) ((doubleTmp >> Bit24) & 255ul));
+                        syncBufferBuilder.Add((byte) ((doubleTmp >> Bit16) & 255ul));
+                        syncBufferBuilder.Add((byte) ((doubleTmp >> Bit8) & 255ul));
+                        syncBufferBuilder.Add((byte) (doubleTmp & 255ul));
                         break;
                     }
                     case Types.Decimal:
                         _int32A = Decimal.GetBits((decimal) data[_iter].Reference);
-
-                        _buffer[_bufferOffset] = (byte) ((_tempBytes[0] >> Bit24) & _0xFF);
-                        _buffer[_bufferOffset + 1] = (byte) ((_tempBytes[0] >> Bit16) & _0xFF);
-                        _buffer[_bufferOffset + 2] = (byte) ((_tempBytes[0] >> Bit8) & _0xFF);
-                        _buffer[_bufferOffset + 3] = (byte) (_tempBytes[0] & _0xFF);
-
-                        _buffer[_bufferOffset + 4] = (byte) ((_tempBytes[1] >> Bit24) & _0xFF);
-                        _buffer[_bufferOffset + 5] = (byte) ((_tempBytes[1] >> Bit16) & _0xFF);
-                        _buffer[_bufferOffset + 6] = (byte) ((_tempBytes[1] >> Bit8) & _0xFF);
-                        _buffer[_bufferOffset + 7] = (byte) (_tempBytes[1] & _0xFF);
-
-                        _buffer[_bufferOffset + 8] = (byte) ((_tempBytes[2] >> Bit24) & _0xFF);
-                        _buffer[_bufferOffset + 9] = (byte) ((_tempBytes[2] >> Bit16) & _0xFF);
-                        _buffer[_bufferOffset + 10] = (byte) ((_tempBytes[2] >> Bit8) & _0xFF);
-                        _buffer[_bufferOffset + 11] = (byte) (_tempBytes[2] & _0xFF);
-
-                        _buffer[_bufferOffset + 12] = (byte) ((_tempBytes[3] >> Bit24) & _0xFF);
-                        _buffer[_bufferOffset + 13] = (byte) ((_tempBytes[3] >> Bit16) & _0xFF);
-                        _buffer[_bufferOffset + 14] = (byte) ((_tempBytes[3] >> Bit8) & _0xFF);
-                        _buffer[_bufferOffset + 15] = (byte) (_tempBytes[3] & _0xFF);
-                        _bufferOffset += 16;
+                        
+                        syncBufferBuilder.Add((byte) ((_int32A[0] >> Bit24) & 255u));
+                        syncBufferBuilder.Add((byte) ((_int32A[0] >> Bit16) & 255u));
+                        syncBufferBuilder.Add((byte) ((_int32A[0] >> Bit8) & 255u));
+                        syncBufferBuilder.Add((byte) (_int32A[0] & 255u));
+                        
+                        syncBufferBuilder.Add((byte) ((_int32A[1] >> Bit24) & 255u));
+                        syncBufferBuilder.Add((byte) ((_int32A[1] >> Bit16) & 255u));
+                        syncBufferBuilder.Add((byte) ((_int32A[1] >> Bit8) & 255u));
+                        syncBufferBuilder.Add((byte) (_int32A[1] & 255u));
+                        
+                        syncBufferBuilder.Add((byte) ((_int32A[2] >> Bit24) & 255u));
+                        syncBufferBuilder.Add((byte) ((_int32A[2] >> Bit16) & 255u));
+                        syncBufferBuilder.Add((byte) ((_int32A[2] >> Bit8) & 255u));
+                        syncBufferBuilder.Add((byte) (_int32A[2] & 255u));
+                        
+                        syncBufferBuilder.Add((byte) ((_int32A[3] >> Bit24) & 255u));
+                        syncBufferBuilder.Add((byte) ((_int32A[3] >> Bit16) & 255u));
+                        syncBufferBuilder.Add((byte) ((_int32A[3] >> Bit8) & 255u));
+                        syncBufferBuilder.Add((byte) (_int32A[3] & 255u));
                         break;
                     case Types.String:
                     {
                         _stringData = data[_iter].String;
                         _int32TMP = _stringData.Length;
+                        _int32TMP2 = BitConverter.GetStringSizeInBytes(_stringData);
+                        
+                        syncBufferBuilder.AddVariableInt(Convert.ToUInt32(_int32TMP));
+                        syncBufferBuilder.AddVariableInt(_int32TMP2);
+                        
+                        
 
                         for (int i = 0; i < _int32TMP; i++)
                         {
                             int value = char.ConvertToUtf32(_stringData, i);
                             if (value < 0x80)
                             {
-                                _buffer[_bufferOffset++] = (byte) value;
+                                syncBufferBuilder.Add((byte) value);
                             }
                             else if (value < 0x0800)
                             {
-                                _buffer[_bufferOffset++] = (byte) (value >> 6 | 0xC0);
-                                _buffer[_bufferOffset++] = (byte) (value & 0x3F | 0x80);
+                                syncBufferBuilder.Add((byte) (value >> 6 | 0xC0));
+                                syncBufferBuilder.Add((byte) (value & 0x3F | 0x80));
                             }
                             else if (value < 0x010000)
                             {
-                                _buffer[_bufferOffset++] = (byte) (value >> 12 | 0xE0);
-                                _buffer[_bufferOffset++] = (byte) ((value >> 6) & 0x3F | 0x80);
-                                _buffer[_bufferOffset++] = (byte) (value & 0x3F | 0x80);
+                                syncBufferBuilder.Add((byte) (value >> 12 | 0xE0));
+                                syncBufferBuilder.Add((byte) ((value >> 6) & 0x3F | 0x80));
+                                syncBufferBuilder.Add((byte) (value & 0x3F | 0x80));
                             }
                             else
                             {
-                                _buffer[_bufferOffset++] = (byte) (value >> 18 | 0xF0);
-                                _buffer[_bufferOffset++] = (byte) ((value >> 12) & 0x3F | 0x80);
-                                _buffer[_bufferOffset++] = (byte) ((value >> 6) & 0x3F | 0x80);
-                                _buffer[_bufferOffset++] = (byte) (value & 0x3F | 0x80);
+                               
+                                syncBufferBuilder.Add((byte) (value >> 18 | 0xF0));
+                                syncBufferBuilder.Add((byte) ((value >> 12) & 0x3F | 0x80));
+                                syncBufferBuilder.Add((byte) ((value >> 6) & 0x3F | 0x80));
+                                syncBufferBuilder.Add((byte) (value & 0x3F | 0x80));
                             }
 
                             if (char.IsSurrogate(_stringData, i)) i++;
@@ -780,146 +813,150 @@ namespace Miner28.UdonUtils.Network
                         _player = (VRCPlayerApi) data[_iter].Reference;
                         if (_player == null)
                         {
-                            _bufferOffset += 4;
+                            syncBufferBuilder.AddVariableInt(0);
                         }
                         else
                         {
-                            _int32TMP = _player.playerId;
-                            _buffer[_bufferOffset] = (byte) ((_int32TMP >> Bit24) & _0xFF);
-                            _buffer[_bufferOffset + 1] = (byte) ((_int32TMP >> Bit16) & _0xFF);
-                            _buffer[_bufferOffset + 2] = (byte) ((_int32TMP >> Bit8) & _0xFF);
-                            _buffer[_bufferOffset + 3] = (byte) (_int32TMP & _0xFF);
-                            _bufferOffset += 4;
+                            syncBufferBuilder.AddVariableInt(_player.playerId);
                         }
-
                         break;
                     }
                     case Types.Color:
                         _color = (Color) data[_iter].Reference;
-                        _tempBytes = BitConverter.GetBytes(_color.r);
-                        Array.Copy(_tempBytes, 0, _buffer, _bufferOffset, 4);
-                        _tempBytes = BitConverter.GetBytes(_color.g);
-                        Array.Copy(_tempBytes, 0, _buffer, _bufferOffset + 4, 4);
-                        _tempBytes = BitConverter.GetBytes(_color.b);
-                        Array.Copy(_tempBytes, 0, _buffer, _bufferOffset + 8, 4);
-                        _tempBytes = BitConverter.GetBytes(_color.a);
-                        Array.Copy(_tempBytes, 0, _buffer, _bufferOffset + 12, 4);
-                        _bufferOffset += 16;
+                        syncBufferBuilder.AddBytes(_color.r);
+                        syncBufferBuilder.AddBytes(_color.g);
+                        syncBufferBuilder.AddBytes(_color.b);
+                        syncBufferBuilder.AddBytes(_color.a);
                         break;
                     case Types.Color32:
                         _color32 = (Color32) data[_iter].Reference;
-                        _buffer[_bufferOffset] = _color32.r;
-                        _buffer[_bufferOffset + 1] = _color32.g;
-                        _buffer[_bufferOffset + 2] = _color32.b;
-                        _buffer[_bufferOffset + 3] = _color32.a;
-                        _bufferOffset += 4;
+                        
+                        syncBufferBuilder.Add(_color32.r);
+                        syncBufferBuilder.Add(_color32.g);
+                        syncBufferBuilder.Add(_color32.b);
+                        syncBufferBuilder.Add(_color32.a);
                         break;
                     case Types.Vector2:
                         _vector2 = (Vector2) data[_iter].Reference;
-                        _tempBytes = BitConverter.GetBytes(_vector2.x);
-                        Array.Copy(_tempBytes, 0, _buffer, _bufferOffset, 4);
-                        _tempBytes = BitConverter.GetBytes(_vector2.y);
-                        Array.Copy(_tempBytes, 0, _buffer, _bufferOffset + 4, 4);
-                        _bufferOffset += 8;
+                        syncBufferBuilder.AddBytes(_vector2.x);
+                        syncBufferBuilder.AddBytes(_vector2.y);
                         break;
                     case Types.Vector2Int:
                         _vector2Int = (Vector2Int) data[_iter].Reference;
-                        _tempBytes = BitConverter.GetBytes(_vector2Int.x);
-                        Array.Copy(_tempBytes, 0, _buffer, _bufferOffset, 4);
-                        _tempBytes = BitConverter.GetBytes(_vector2Int.y);
-                        Array.Copy(_tempBytes, 0, _buffer, _bufferOffset + 4, 4);
-                        _bufferOffset += 8;
+                        syncBufferBuilder.AddVariableInt(_vector2Int.x);
+                        syncBufferBuilder.AddVariableInt(_vector2Int.y);
                         break;
                     case Types.Vector3:
                         _vector3 = (Vector3) data[_iter].Reference;
-
-                        _tempBytes = BitConverter.GetBytes(_vector3.x);
-                        Array.Copy(_tempBytes, 0, _buffer, _bufferOffset, 4);
-                        _tempBytes = BitConverter.GetBytes(_vector3.y);
-                        Array.Copy(_tempBytes, 0, _buffer, _bufferOffset + 4, 4);
-                        _tempBytes = BitConverter.GetBytes(_vector3.z);
-                        Array.Copy(_tempBytes, 0, _buffer, _bufferOffset + 8, 4);
-                        _bufferOffset += 12;
+                        syncBufferBuilder.AddBytes(_vector3.x);
+                        syncBufferBuilder.AddBytes(_vector3.y);
+                        syncBufferBuilder.AddBytes(_vector3.z);
                         break;
                     case Types.Vector3Int:
                         _vector3Int = (Vector3Int) data[_iter].Reference;
-                        _tempBytes = BitConverter.GetBytes(_vector3Int.x);
-                        Array.Copy(_tempBytes, 0, _buffer, _bufferOffset, 4);
-                        _tempBytes = BitConverter.GetBytes(_vector3Int.y);
-                        Array.Copy(_tempBytes, 0, _buffer, _bufferOffset + 4, 4);
-                        _tempBytes = BitConverter.GetBytes(_vector3Int.z);
-                        Array.Copy(_tempBytes, 0, _buffer, _bufferOffset + 8, 4);
-                        _bufferOffset += 12;
+                        
+                        syncBufferBuilder.AddVariableInt(_vector3Int.x);
+                        syncBufferBuilder.AddVariableInt(_vector3Int.y);   
+                        syncBufferBuilder.AddVariableInt(_vector3Int.z);
                         break;
                     case Types.Vector4:
                         _vector4 = (Vector4) data[_iter].Reference;
-                        _tempBytes = BitConverter.GetBytes(_vector4.x);
-                        Array.Copy(_tempBytes, 0, _buffer, _bufferOffset, 4);
-                        _tempBytes = BitConverter.GetBytes(_vector4.y);
-                        Array.Copy(_tempBytes, 0, _buffer, _bufferOffset + 4, 4);
-                        _tempBytes = BitConverter.GetBytes(_vector4.z);
-                        Array.Copy(_tempBytes, 0, _buffer, _bufferOffset + 8, 4);
-                        _tempBytes = BitConverter.GetBytes(_vector4.w);
-                        Array.Copy(_tempBytes, 0, _buffer, _bufferOffset + 12, 4);
-                        _bufferOffset += 16;
+                        
+                        syncBufferBuilder.AddBytes(_vector4.x);
+                        syncBufferBuilder.AddBytes(_vector4.y);
+                        syncBufferBuilder.AddBytes(_vector4.z);
+                        syncBufferBuilder.AddBytes(_vector4.w);
                         break;
                     case Types.Quaternion:
                         _quaternion = (Quaternion) data[_iter].Reference;
-                        _tempBytes = BitConverter.GetBytes(_quaternion.x);
-                        Array.Copy(_tempBytes, 0, _buffer, _bufferOffset, 4);
-                        _tempBytes = BitConverter.GetBytes(_quaternion.y);
-                        Array.Copy(_tempBytes, 0, _buffer, _bufferOffset + 4, 4);
-                        _tempBytes = BitConverter.GetBytes(_quaternion.z);
-                        Array.Copy(_tempBytes, 0, _buffer, _bufferOffset + 8, 4);
-                        _tempBytes = BitConverter.GetBytes(_quaternion.w);
-                        Array.Copy(_tempBytes, 0, _buffer, _bufferOffset + 12, 4);
-                        _bufferOffset += 16;
+                        
+                        syncBufferBuilder.AddBytes(_quaternion.x);
+                        syncBufferBuilder.AddBytes(_quaternion.y);
+                        syncBufferBuilder.AddBytes(_quaternion.z);
+                        syncBufferBuilder.AddBytes(_quaternion.w);
                         break;
                     case Types.DateTime:
                         _int64Value = ((DateTime) data[_iter].Reference).ToBinary();
-                        _tempBytes = BitConverter.GetBytes(_int64Value);
-                        Array.Copy(_tempBytes, 0, _buffer, _bufferOffset, 8);
-                        _bufferOffset += 8;
+                        
+                        syncBufferBuilder.Add((byte) ((_int64Value >> Bit56) & _0xFF));
+                        syncBufferBuilder.Add((byte) ((_int64Value >> Bit48) & _0xFF));
+                        syncBufferBuilder.Add((byte) ((_int64Value >> Bit40) & _0xFF));
+                        syncBufferBuilder.Add((byte) ((_int64Value >> Bit32) & _0xFF));
+                        syncBufferBuilder.Add((byte) ((_int64Value >> Bit24) & _0xFF));
+                        syncBufferBuilder.Add((byte) ((_int64Value >> Bit16) & _0xFF));
+                        syncBufferBuilder.Add((byte) ((_int64Value >> Bit8) & _0xFF));
+                        syncBufferBuilder.Add((byte) (_int64Value & _0xFF));
+                        
                         break;
                     //Arrays
                     case Types.BooleanA:
                     {
                         _boolA = (bool[]) data[_iter].Reference;
-                        for (int j = 0; j < _boolA.Length; j++)
+                        _int32TMP = _boolA.Length; 
+                        syncBufferBuilder.AddVariableInt(Convert.ToUInt32(_int32TMP));
+                        
+                        //bit packing
+                        int bitOffset = 0;
+                        byte currentByte = 0;
+                        for (_int32TMP2 = 0; _int32TMP2 < _int32TMP; _int32TMP2++)
                         {
-                            _buffer[_bufferOffset + j] = _boolA[j] ? BYTE_ONE : BYTE_ZERO;
-                        }
+                            if (_boolA[_int32TMP2])
+                            {
+                                currentByte |= (byte) (1 << bitOffset);
+                            }
 
-                        _bufferOffset += _boolA.Length;
+                            bitOffset++;
+                            if (bitOffset == 8)
+                            {
+                                syncBufferBuilder.Add(currentByte);
+                                currentByte = 0;
+                                bitOffset = 0;
+                            }
+                        }
+                        
+                        if (bitOffset != 0)
+                        {
+                            syncBufferBuilder.Add(currentByte);
+                        }
                         break;
                     }
                     case Types.ByteA:
                         _byteA = (byte[]) data[_iter].Reference;
-                        Array.Copy(_byteA, 0, _buffer, _bufferOffset, _byteA.Length);
-                        _bufferOffset += _byteA.Length;
+                        _int32TMP = _byteA.Length;
+                        syncBufferBuilder.AddVariableInt(Convert.ToUInt32(_int32TMP));
+                        for (_int32TMP2 = 0; _int32TMP2 < _int32TMP; _int32TMP2++)
+                        {
+                            syncBufferBuilder.Add(_byteA[_int32TMP2]);
+                        }
                         break;
                     case Types.SByteA:
                     {
                         _sbyteA = (sbyte[]) data[_iter].Reference;
-                        for (int j = 0; j < _sbyteA.Length; j++)
+                        _int32TMP = _sbyteA.Length;
+                        
+                        syncBufferBuilder.AddVariableInt(Convert.ToUInt32(_int32TMP));
+                        for (_int32TMP2 = 0; _int32TMP2 < _int32TMP; _int32TMP2++)
                         {
-                            _sbyteValue = _sbyteA[j];
-                            _buffer[_bufferOffset + j] =
-                                (byte) (_sbyteValue < 0 ? (_sbyteValue + 0xFFFF) : _sbyteValue);
+                            syncBufferBuilder.Add((byte) (_sbyteValue < 0 ? (_sbyteValue + 0xFF) : _sbyteValue));
                         }
-
-                        _bufferOffset += _sbyteA.Length;
                         break;
                     }
                     case Types.Int16A:
                     {
                         _int16A = (short[]) data[_iter].Reference;
-                        for (int j = 0; j < _int16A.Length; j++)
+                        _int32TMP = _int16A.Length;
+                        
+                        syncBufferBuilder.AddVariableInt(Convert.ToUInt32(_int32TMP));
+                        for (_int32TMP2 = 0; _int32TMP2 < _int32TMP; _int32TMP2++)
                         {
-                            _int32TMP = _int16A[j] < 0 ? (_int16A[j] + 0xFFFF) : _int16A[j];
-                            _buffer[_bufferOffset] = (byte) ((_int32TMP >> Bit8) & _0xFF);
-                            _buffer[_bufferOffset + 1] = (byte) (_int32TMP & _0xFF);
-                            _bufferOffset += 2;
+                            _int32TMP = _int16A[_int32TMP2];
+
+#if NETCALLER_USE_VARIABLE_SERIALIZATION
+                            syncBufferBuilder.AddVariableInt(Convert.ToUInt32(_int32TMP));
+#else
+                            syncBufferBuilder.Add((byte) ((_int32TMP >> Bit8) & 255u));
+                            syncBufferBuilder.Add((byte) (_int32TMP & 255u));
+#endif                       
                         }
 
                         break;
@@ -927,12 +964,18 @@ namespace Miner28.UdonUtils.Network
                     case Types.UInt16A:
                     {
                         _uint16A = (ushort[]) data[_iter].Reference;
-                        for (int j = 0; j < _uint16A.Length; j++)
+                        _int32TMP = _uint16A.Length;
+                        
+                        syncBufferBuilder.AddVariableInt(Convert.ToUInt32(_int32TMP));
+                        for (_int32TMP2 = 0; _int32TMP2 < _int32TMP; _int32TMP2++)
                         {
-                            _uint16Value = _uint16A[j];
-                            _buffer[_bufferOffset] = (byte) ((_uint16Value >> Bit8) & 255u);
-                            _buffer[_bufferOffset + 1] = (byte) (_uint16Value & 255u);
-                            _bufferOffset += 2;
+                            _uint16Value = _uint16A[_int32TMP2];
+#if NETCALLER_USE_VARIABLE_SERIALIZATION
+                            syncBufferBuilder.AddVariableInt(_uint16Value);
+#else
+                            syncBufferBuilder.Add((byte) ((_uint16Value >> Bit8) & 255u));
+                            syncBufferBuilder.Add((byte) (_uint16Value & 255u));
+#endif
                         }
 
                         break;
@@ -940,197 +983,386 @@ namespace Miner28.UdonUtils.Network
                     case Types.Int32A:
                     {
                         _int32A = (int[]) data[_iter].Reference;
-                        for (int j = 0; j < _int32A.Length; j++)
+                        _int32TMP = _int32A.Length;
+                        
+                        syncBufferBuilder.AddVariableInt(Convert.ToUInt32(_int32TMP));
+                        for (_int32TMP2 = 0; _int32TMP2 < _int32TMP; _int32TMP2++)
                         {
-                            _int32TMP2 = _int32A[j];
-                            _buffer[_bufferOffset] = (byte) ((_int32TMP2 >> Bit24) & _0xFF);
-                            _buffer[_bufferOffset + 1] = (byte) ((_int32TMP2 >> Bit16) & _0xFF);
-                            _buffer[_bufferOffset + 2] = (byte) ((_int32TMP2 >> Bit8) & _0xFF);
-                            _buffer[_bufferOffset + 3] = (byte) (_int32TMP2 & _0xFF);
-                            _bufferOffset += 4;
+                            _int32TMP = _int32A[_int32TMP2];
+#if NETCALLER_USE_VARIABLE_SERIALIZATION
+                            syncBufferBuilder.AddVariableInt(_int32TMP);
+#else
+                            syncBufferBuilder.Add((byte) ((_int32TMP >> Bit24) & 255u));
+                            syncBufferBuilder.Add((byte) ((_int32TMP >> Bit16) & 255u));
+                            syncBufferBuilder.Add((byte) ((_int32TMP >> Bit8) & 255u));
+                            syncBufferBuilder.Add((byte) (_int32TMP & 255u));
+#endif
                         }
-
                         break;
                     }
                     case Types.UInt32A:
                     {
                         _uint32A = (uint[]) data[_iter].Reference;
-                        for (int j = 0; j < _uint32A.Length; j++)
+                        _int32TMP = _uint32A.Length;
+                        
+                        syncBufferBuilder.AddVariableInt(Convert.ToUInt32(_int32TMP));
+                        for (_int32TMP2 = 0; _int32TMP2 < _int32TMP; _int32TMP2++)
                         {
-                            _uint32Value = _uint32A[j];
-                            _buffer[_bufferOffset] = (byte) ((_uint32Value >> Bit24) & 255u);
-                            _buffer[_bufferOffset + 1] = (byte) ((_uint32Value >> Bit16) & 255u);
-                            _buffer[_bufferOffset + 2] = (byte) ((_uint32Value >> Bit8) & 255u);
-                            _buffer[_bufferOffset + 3] = (byte) (_uint32Value & 255u);
-                            _bufferOffset += 4;
+                            _uint32Value = _uint32A[_int32TMP2];
+#if NETCALLER_USE_VARIABLE_SERIALIZATION
+                            syncBufferBuilder.AddVariableInt(_uint32Value);
+#else
+                            syncBufferBuilder.Add((byte) ((_uint32Value >> Bit24) & 255u));
+                            syncBufferBuilder.Add((byte) ((_uint32Value >> Bit16) & 255u));
+                            syncBufferBuilder.Add((byte) ((_uint32Value >> Bit8) & 255u));
+                            syncBufferBuilder.Add((byte) (_uint32Value & 255u));
+#endif
                         }
-
                         break;
                     }
                     case Types.Int64A:
                     {
                         _int64A = (long[]) data[_iter].Reference;
-                        for (int j = 0; j < _int64A.Length; j++)
+                        _int32TMP = _int64A.Length;
+                        
+                        syncBufferBuilder.AddVariableInt(Convert.ToUInt32(_int32TMP));
+                        for (_int32TMP2 = 0; _int32TMP2 < _int32TMP; _int32TMP2++)
                         {
-                            _int64Value = _int64A[j];
-                            _buffer[_bufferOffset] = (byte) ((_int64Value >> Bit56) & _0xFF);
-                            _buffer[_bufferOffset + 1] = (byte) ((_int64Value >> Bit48) & _0xFF);
-                            _buffer[_bufferOffset + 2] = (byte) ((_int64Value >> Bit40) & _0xFF);
-                            _buffer[_bufferOffset + 3] = (byte) ((_int64Value >> Bit32) & _0xFF);
-                            _buffer[_bufferOffset + 4] = (byte) ((_int64Value >> Bit24) & _0xFF);
-                            _buffer[_bufferOffset + 5] = (byte) ((_int64Value >> Bit16) & _0xFF);
-                            _buffer[_bufferOffset + 6] = (byte) ((_int64Value >> Bit8) & _0xFF);
-                            _buffer[_bufferOffset + 7] = (byte) (_int64Value & _0xFF);
-                            _bufferOffset += 8;
+                            _int64Value = _int64A[_int32TMP2];
+#if NETCALLER_USE_VARIABLE_SERIALIZATION
+                            syncBufferBuilder.AddVariableInt(_int64Value);
+#else
+                            syncBufferBuilder.Add((byte) ((_int64Value >> Bit56) & _0xFF));
+                            syncBufferBuilder.Add((byte) ((_int64Value >> Bit48) & _0xFF));
+                            syncBufferBuilder.Add((byte) ((_int64Value >> Bit40) & _0xFF));
+                            syncBufferBuilder.Add((byte) ((_int64Value >> Bit32) & _0xFF));
+                            syncBufferBuilder.Add((byte) ((_int64Value >> Bit24) & _0xFF));
+                            syncBufferBuilder.Add((byte) ((_int64Value >> Bit16) & _0xFF));
+                            syncBufferBuilder.Add((byte) ((_int64Value >> Bit8) & _0xFF));
+                            syncBufferBuilder.Add((byte) (_int64Value & _0xFF));
+#endif
                         }
-
                         break;
                     }
                     case Types.UInt64A:
                     {
                         _uint64A = (ulong[]) data[_iter].Reference;
-                        for (int j = 0; j < _uint64A.Length; j++)
+                        _int32TMP = _uint64A.Length;
+                        
+                        syncBufferBuilder.AddVariableInt(Convert.ToUInt32(_int32TMP));
+                        for (_int32TMP2 = 0; _int32TMP2 < _int32TMP; _int32TMP2++)
                         {
-                            _uint64Value = _uint64A[j];
-                            _buffer[_bufferOffset] = (byte) ((_uint64Value >> Bit56) & 255ul);
-                            _buffer[_bufferOffset + 1] = (byte) ((_uint64Value >> Bit48) & 255ul);
-                            _buffer[_bufferOffset + 2] = (byte) ((_uint64Value >> Bit40) & 255ul);
-                            _buffer[_bufferOffset + 3] = (byte) ((_uint64Value >> Bit32) & 255ul);
-                            _buffer[_bufferOffset + 4] = (byte) ((_uint64Value >> Bit24) & 255ul);
-                            _buffer[_bufferOffset + 5] = (byte) ((_uint64Value >> Bit16) & 255ul);
-                            _buffer[_bufferOffset + 6] = (byte) ((_uint64Value >> Bit8) & 255ul);
-                            _buffer[_bufferOffset + 7] = (byte) (_uint64Value & 255ul);
-                            _bufferOffset += 8;
+                            _uint64Value = _uint64A[_int32TMP2];
+#if NETCALLER_USE_VARIABLE_SERIALIZATION
+                            syncBufferBuilder.AddVariableInt(_uint64Value);
+#else
+                            syncBufferBuilder.Add((byte) ((_uint64Value >> Bit56) & 255ul));
+                            syncBufferBuilder.Add((byte) ((_uint64Value >> Bit48) & 255ul));
+                            syncBufferBuilder.Add((byte) ((_uint64Value >> Bit40) & 255ul));
+                            syncBufferBuilder.Add((byte) ((_uint64Value >> Bit32) & 255ul));
+                            syncBufferBuilder.Add((byte) ((_uint64Value >> Bit24) & 255ul));
+                            syncBufferBuilder.Add((byte) ((_uint64Value >> Bit16) & 255ul));
+                            syncBufferBuilder.Add((byte) ((_uint64Value >> Bit8) & 255ul));
+                            syncBufferBuilder.Add((byte) (_uint64Value & 255ul));
+#endif
                         }
-
                         break;
                     }
                     case Types.SingleA:
                     {
                         _singleA = (float[]) data[_iter].Reference;
-                        for (int j = 0; j < _singleA.Length; j++)
+                        _int32TMP = _singleA.Length;
+                        
+                        syncBufferBuilder.AddVariableInt(Convert.ToUInt32(_int32TMP));
+                        for (_int32TMP2 = 0; _int32TMP2 < _int32TMP; _int32TMP2++)
                         {
-                            _tempBytes = BitConverter.GetBytes(_singleA[j]);
-                            Array.Copy(_tempBytes, 0, _buffer, _bufferOffset + j * 4, 4);
-                        }
+                            _singleValue = _singleA[_int32TMP2];
+                            _uintTmp = 0;
+                            if (float.IsNaN(_singleValue))
+                            {
+                                _uintTmp = FloatExpMask | FloatFracMask;
+                            }
+                            else if (float.IsInfinity(_singleValue))
+                            {
+                                _uintTmp = FloatExpMask;
+                                if (float.IsNegativeInfinity(_singleValue)) _uintTmp |= FloatSignBit;
+                            }
+                            else if (_singleValue != 0f)
+                            {
+                                if (_singleValue < 0f)
+                                {
+                                    _singleValue = -_singleValue;
+                                    _uintTmp |= FloatSignBit;
+                                }
 
-                        _bufferOffset += _singleA.Length * 4;
+                                int exp = 0;
+                                bool normal = true;
+                                while (_singleValue >= 2f)
+                                {
+                                    _singleValue *= 0.5f;
+                                    exp++;
+                                }
+
+                                while (_singleValue < 1f)
+                                {
+                                    if (exp == -126)
+                                    {
+                                        normal = false;
+                                        break;
+                                    }
+
+                                    _singleValue *= 2f;
+                                    exp--;
+                                }
+
+                                if (normal)
+                                {
+                                    _singleValue -= 1f;
+                                    exp += 127;
+                                }
+                                else exp = 0;
+
+                                _uintTmp |= Convert.ToUInt32(exp << 23) & FloatExpMask;
+                                _uintTmp |= Convert.ToUInt32(_singleValue * 0x800000) & FloatFracMask;
+                            }
+
+                            
+                            syncBufferBuilder.Add((byte) ((_uintTmp >> Bit24) & 255u));
+                            syncBufferBuilder.Add((byte) ((_uintTmp >> Bit16) & 255u));
+                            syncBufferBuilder.Add((byte) ((_uintTmp >> Bit8) & 255u));
+                            syncBufferBuilder.Add((byte) (_uintTmp & 255u));
+                        }
                         break;
                     }
                     case Types.DoubleA:
                     {
                         _doubleA = (double[]) data[_iter].Reference;
-                        for (int j = 0; j < _doubleA.Length; j++)
+                        _int32TMP = _doubleA.Length;
+                        
+                        syncBufferBuilder.AddVariableInt(Convert.ToUInt32(_int32TMP));
+                        for (_int32TMP2 = 0; _int32TMP2 < _int32TMP; _int32TMP2++)
                         {
-                            _tempBytes = BitConverter.GetBytes(_doubleA[j]);
-                            Array.Copy(_tempBytes, 0, _buffer, _bufferOffset + j * 8, 8);
+                            _doubleValue = _doubleA[_int32TMP2];
+                            ulong doubleTmp = 0;
+                            if (double.IsNaN(_doubleValue))
+                            {
+                                doubleTmp = DoubleExpMask | DoubleFracMask;
+                            }
+                            else if (double.IsInfinity(_doubleValue))
+                            {
+                                doubleTmp = DoubleExpMask;
+                                if (double.IsNegativeInfinity(_doubleValue)) doubleTmp |= DoubleSignBit;
+                            }
+                            else if (_doubleValue != 0.0)
+                            {
+                                if (_doubleValue < 0.0)
+                                {
+                                    _doubleValue = -_doubleValue;
+                                    doubleTmp |= DoubleSignBit;
+                                }
+
+                                long exp = 0;
+                                while (_doubleValue >= 2.0)
+                                {
+                                    _doubleValue *= 0.5;
+                                    ++exp;
+                                }
+
+                                bool normal = true;
+                                while (_doubleValue < 1.0)
+                                {
+                                    if (exp == -1022)
+                                    {
+                                        normal = false;
+                                        break;
+                                    }
+
+                                    _doubleValue *= 2.0;
+                                    --exp;
+                                }
+
+                                if (normal)
+                                {
+                                    _doubleValue -= 1.0;
+                                    exp += 1023;
+                                }
+                                else exp = 0;
+
+                                doubleTmp |= Convert.ToUInt64(exp << 52) & DoubleExpMask;
+                                doubleTmp |= Convert.ToUInt64(_doubleValue * 0x10000000000000) & DoubleFracMask;
+                            }
+
+                            syncBufferBuilder.Add((byte) ((doubleTmp >> Bit56) & 255ul));
+                            syncBufferBuilder.Add((byte) ((doubleTmp >> Bit48) & 255ul));
+                            syncBufferBuilder.Add((byte) ((doubleTmp >> Bit40) & 255ul));
+                            syncBufferBuilder.Add((byte) ((doubleTmp >> Bit32) & 255ul));
+                            syncBufferBuilder.Add((byte) ((doubleTmp >> Bit24) & 255ul));
+                            syncBufferBuilder.Add((byte) ((doubleTmp >> Bit16) & 255ul));
+                            syncBufferBuilder.Add((byte) ((doubleTmp >> Bit8) & 255ul));
+                            syncBufferBuilder.Add((byte) (doubleTmp & 255ul));
                         }
 
-                        _bufferOffset += _doubleA.Length * 8;
                         break;
                     }
                     case Types.DecimalA:
+                    {
+                        _decimalA = (decimal[]) data[_iter].Reference;
+                        _int32TMP = _decimalA.Length;
+                        
+                        syncBufferBuilder.AddVariableInt(Convert.ToUInt32(_int32TMP));
+                        for (_int32TMP2 = 0; _int32TMP2 < _int32TMP; _int32TMP2++)
+                        {
+                            _int32A = Decimal.GetBits(_decimalA[_int32TMP2]);
+                            
+                            syncBufferBuilder.Add((byte) ((_int32A[0] >> Bit24) & 255u));
+                            syncBufferBuilder.Add((byte) ((_int32A[0] >> Bit16) & 255u));
+                            syncBufferBuilder.Add((byte) ((_int32A[0] >> Bit8) & 255u));
+                            syncBufferBuilder.Add((byte) (_int32A[0] & 255u));
+                            
+                            syncBufferBuilder.Add((byte) ((_int32A[1] >> Bit24) & 255u));
+                            syncBufferBuilder.Add((byte) ((_int32A[1] >> Bit16) & 255u));
+                            syncBufferBuilder.Add((byte) ((_int32A[1] >> Bit8) & 255u));
+                            syncBufferBuilder.Add((byte) (_int32A[1] & 255u));
+                            
+                            syncBufferBuilder.Add((byte) ((_int32A[2] >> Bit24) & 255u));
+                            syncBufferBuilder.Add((byte) ((_int32A[2] >> Bit16) & 255u));
+                            syncBufferBuilder.Add((byte) ((_int32A[2] >> Bit8) & 255u));
+                            syncBufferBuilder.Add((byte) (_int32A[2] & 255u));
+                            
+                            syncBufferBuilder.Add((byte) ((_int32A[3] >> Bit24) & 255u));
+                            syncBufferBuilder.Add((byte) ((_int32A[3] >> Bit16) & 255u));
+                            syncBufferBuilder.Add((byte) ((_int32A[3] >> Bit8) & 255u));
+                            syncBufferBuilder.Add((byte) (_int32A[3] & 255u));
+                        }
                         break;
+                    }
                     case Types.StringA:
                     {
                         _stringA = (string[]) data[_iter].Reference;
-                        for (int j = 0; j < _stringA.Length; j++)
+                        _int32TMP = _stringA.Length;
+                        
+                        syncBufferBuilder.AddVariableInt(Convert.ToUInt32(_int32TMP));
+                        for (_int32TMP2 = 0; _int32TMP2 < _int32TMP; _int32TMP2++)
                         {
-                            _tempBytes = BitConverter.GetBytes(_stringA[j]);
-                            Array.Copy(_tempBytes, 0, _buffer, _bufferOffset, _tempBytes.Length);
-                            _bufferOffset += _tempBytes.Length;
-                            if (j < _stringA.Length - 1)
+                            _stringData = _stringA[_int32TMP2];
+                            _int32TMP = _stringData.Length;
+                            _int32TMP2 = BitConverter.GetStringSizeInBytes(_stringData);
+                            
+                            syncBufferBuilder.AddVariableInt(Convert.ToUInt32(_int32TMP));
+                            syncBufferBuilder.AddVariableInt(Convert.ToUInt32(_int32TMP2));
+                            
+                            for (_int32TMP3 = 0; _int32TMP3 < _int32TMP; _int32TMP3++)
                             {
-                                _buffer[_bufferOffset] = BYTE_ZERO;
-                                _bufferOffset++;
+                                int value = char.ConvertToUtf32(_stringData, _int32TMP3);
+                                if (value < 0x80)
+                                {
+                                    syncBufferBuilder.Add((byte) value);
+                                }
+                                else if (value < 0x0800)
+                                {
+                                    syncBufferBuilder.Add((byte) (value >> 6 | 0xC0));
+                                    syncBufferBuilder.Add((byte) (value & 0x3F | 0x80));
+                                }
+                                else if (value < 0x010000)
+                                {
+                                    syncBufferBuilder.Add((byte) (value >> 12 | 0xE0));
+                                    syncBufferBuilder.Add((byte) ((value >> 6) & 0x3F | 0x80));
+                                    syncBufferBuilder.Add((byte) (value & 0x3F | 0x80));
+                                }
+                                else
+                                {
+                                    syncBufferBuilder.Add((byte) (value >> 18 | 0xF0));
+                                    syncBufferBuilder.Add((byte) ((value >> 12) & 0x3F | 0x80));
+                                    syncBufferBuilder.Add((byte) ((value >> 6) & 0x3F | 0x80));
+                                    syncBufferBuilder.Add((byte) (value & 0x3F | 0x80));
+                                }
+
+                                if (char.IsSurrogate(_stringData, _int32TMP3)) _int32TMP3++;
                             }
                         }
-
                         break;
                     }
                     case Types.VRCPlayerApiA:
                     {
                         _vrcPlayerApiA = (VRCPlayerApi[]) data[_iter].Reference;
-                        for (int j = 0; j < _vrcPlayerApiA.Length; j++)
-                        {
-                            _int32TMP = _vrcPlayerApiA[j].playerId;
-                            _buffer[_bufferOffset] = (byte) ((_int32TMP >> Bit24) & _0xFF);
-                            _buffer[_bufferOffset + 1] = (byte) ((_int32TMP >> Bit16) & _0xFF);
-                            _buffer[_bufferOffset + 2] = (byte) ((_int32TMP >> Bit8) & _0xFF);
-                            _buffer[_bufferOffset + 3] = (byte) (_int32TMP & _0xFF);
-                            _bufferOffset += 4;
-                        }
+                        _int32TMP = _vrcPlayerApiA.Length;
+                        
+                        syncBufferBuilder.AddVariableInt(Convert.ToUInt32(_int32TMP));
+                        for (_int32TMP2 = 0; _int32TMP2 < _int32TMP; _int32TMP2++) 
+                            syncBufferBuilder.AddVariableInt(_vrcPlayerApiA[_int32TMP2] == null ? 0 : _vrcPlayerApiA[_int32TMP2].playerId);
 
                         break;
                     }
                     case Types.ColorA:
                     {
                         _colorA = (Color[]) data[_iter].Reference;
-                        for (int j = 0; j < _colorA.Length; j++)
+                        _int32TMP = _colorA.Length;
+                        
+                        syncBufferBuilder.AddVariableInt(Convert.ToUInt32(_int32TMP));
+                        for (_int32TMP2 = 0; _int32TMP2 < _int32TMP; _int32TMP2++)
                         {
-                            _color = _colorA[j];
-                            _tempBytes = BitConverter.GetBytes(_color.r);
-                            Array.Copy(_tempBytes, 0, _buffer, _bufferOffset, 4);
-                            _tempBytes = BitConverter.GetBytes(_color.g);
-                            Array.Copy(_tempBytes, 0, _buffer, _bufferOffset + 4, 4);
-                            _tempBytes = BitConverter.GetBytes(_color.b);
-                            Array.Copy(_tempBytes, 0, _buffer, _bufferOffset + 8, 4);
-                            _tempBytes = BitConverter.GetBytes(_color.a);
-                            Array.Copy(_tempBytes, 0, _buffer, _bufferOffset + 12, 4);
-                            _bufferOffset += 16;
+                            _color = _colorA[_int32TMP2];
+                            syncBufferBuilder.AddBytes(_color.r);
+                            syncBufferBuilder.AddBytes(_color.g);
+                            syncBufferBuilder.AddBytes(_color.b);
+                            syncBufferBuilder.AddBytes(_color.a);
                         }
-
                         break;
                     }
                     case Types.Color32A:
                     {
                         _color32A = (Color32[]) data[_iter].Reference;
-                        for (int j = 0; j < _color32A.Length; j++)
+                        _int32TMP = _color32A.Length;
+                        
+                        syncBufferBuilder.AddVariableInt(Convert.ToUInt32(_int32TMP));
+                        for (_int32TMP2 = 0; _int32TMP2 < _int32TMP; _int32TMP2++)
                         {
-                            _color32 = _color32A[j];
-                            _buffer[_bufferOffset] = _color32.r;
-                            _buffer[_bufferOffset + 1] = _color32.g;
-                            _buffer[_bufferOffset + 2] = _color32.b;
-                            _buffer[_bufferOffset + 3] = _color32.a;
-                            _bufferOffset += 4;
+                            _color32 = _color32A[_int32TMP2];
+                            syncBufferBuilder.Add(_color32.r);
+                            syncBufferBuilder.Add(_color32.g);
+                            syncBufferBuilder.Add(_color32.b);
+                            syncBufferBuilder.Add(_color32.a);
                         }
-
-                        _bufferOffset += _color32A.Length * 4;
                         break;
                     }
                     case Types.Vector2A:
                     {
                         _vector2A = (Vector2[]) data[_iter].Reference;
-                        for (int j = 0; j < _vector2A.Length; j++)
+                        _int32TMP = _vector2A.Length;
+                        
+                        syncBufferBuilder.AddVariableInt(Convert.ToUInt32(_int32TMP));
+                        for (_int32TMP2 = 0; _int32TMP2 < _int32TMP; _int32TMP2++) 
                         {
-                            _vector2 = _vector2A[j];
-                            _tempBytes = BitConverter.GetBytes(_vector2.x);
-                            Array.Copy(_tempBytes, 0, _buffer, _bufferOffset, 4);
-                            _tempBytes = BitConverter.GetBytes(_vector2.y);
-                            Array.Copy(_tempBytes, 0, _buffer, _bufferOffset + 4, 4);
-                            _bufferOffset += 8;
+                            _vector2 = _vector2A[_int32TMP2];
+                            syncBufferBuilder.AddBytes(_vector2.x);
+                            syncBufferBuilder.AddBytes(_vector2.y);
                         }
-
-                        _bufferOffset += _vector2A.Length * 8;
                         break;
                     }
                     case Types.Vector2IntA:
                     {
                         _vector2IntA = (Vector2Int[]) data[_iter].Reference;
-                        for (int j = 0; j < _vector2IntA.Length; j++)
+                        _int32TMP = _vector2IntA.Length;
+
+                        syncBufferBuilder.AddVariableInt(Convert.ToUInt32(_int32TMP));
+                        for (_int32TMP2 = 0; _int32TMP2 < _int32TMP; _int32TMP2++)
                         {
-                            _vector2Int = _vector2IntA[j];
+                            _vector2Int = _vector2IntA[_int32TMP2];
+#if NETCALLER_USE_VARIABLE_SERIALIZATION
+                            syncBufferBuilder.AddVariableInt(_vector2Int.x);
+                            syncBufferBuilder.AddVariableInt(_vector2Int.y);
+#else
                             _int32TMP = _vector2Int.x;
-                            _buffer[_bufferOffset] = (byte) ((_int32TMP >> Bit24) & _0xFF);
-                            _buffer[_bufferOffset + 1] = (byte) ((_int32TMP >> Bit16) & _0xFF);
-                            _buffer[_bufferOffset + 2] = (byte) ((_int32TMP >> Bit8) & _0xFF);
-                            _buffer[_bufferOffset + 3] = (byte) (_int32TMP & _0xFF);
+                            syncBufferBuilder.Add((byte) ((_int32TMP >> Bit24) & 255u));
+                            syncBufferBuilder.Add((byte) ((_int32TMP >> Bit16) & 255u));
+                            syncBufferBuilder.Add((byte) ((_int32TMP >> Bit8) & 255u));
+                            syncBufferBuilder.Add((byte) (_int32TMP & 255u));
                             _int32TMP = _vector2Int.y;
-                            _buffer[_bufferOffset + 4] = (byte) ((_int32TMP >> Bit24) & _0xFF);
-                            _buffer[_bufferOffset + 5] = (byte) ((_int32TMP >> Bit16) & _0xFF);
-                            _buffer[_bufferOffset + 6] = (byte) ((_int32TMP >> Bit8) & _0xFF);
-                            _buffer[_bufferOffset + 7] = (byte) (_int32TMP & _0xFF);
-                            _bufferOffset += 8;
+                            syncBufferBuilder.Add((byte) ((_int32TMP >> Bit24) & 255u));
+                            syncBufferBuilder.Add((byte) ((_int32TMP >> Bit16) & 255u));
+                            syncBufferBuilder.Add((byte) ((_int32TMP >> Bit8) & 255u));
+                            syncBufferBuilder.Add((byte) (_int32TMP & 255u));
+#endif
                         }
 
                         break;
@@ -1138,61 +1370,64 @@ namespace Miner28.UdonUtils.Network
                     case Types.Vector3A:
                     {
                         _vector3A = (Vector3[]) data[_iter].Reference;
-                        for (int j = 0; j < _vector3A.Length; j++)
+                        _int32TMP = _vector3A.Length;
+                        
+                        syncBufferBuilder.AddVariableInt(Convert.ToUInt32(_int32TMP));
+                        for (_int32TMP2 = 0; _int32TMP2 < _int32TMP; _int32TMP2++) 
                         {
-                            _vector3 = _vector3A[j];
-                            _tempBytes = BitConverter.GetBytes(_vector3.x);
-                            Array.Copy(_tempBytes, 0, _buffer, _bufferOffset + j * 12, 4);
-                            _tempBytes = BitConverter.GetBytes(_vector3.y);
-                            Array.Copy(_tempBytes, 0, _buffer, _bufferOffset + j * 12 + 4, 4);
-                            _tempBytes = BitConverter.GetBytes(_vector3.z);
-                            Array.Copy(_tempBytes, 0, _buffer, _bufferOffset + j * 12 + 8, 4);
+                            _vector3 = _vector3A[_int32TMP2];
+                            syncBufferBuilder.AddBytes(_vector3.x);
+                            syncBufferBuilder.AddBytes(_vector3.y);
+                            syncBufferBuilder.AddBytes(_vector3.z);
                         }
-
-                        _bufferOffset += _vector3A.Length * 12;
                         break;
                     }
                     case Types.Vector3IntA:
                     {
                         _vector3IntA = (Vector3Int[]) data[_iter].Reference;
-                        for (int j = 0; j < _vector3IntA.Length; j++)
+                        _int32TMP = _vector3IntA.Length;
+                        
+                        syncBufferBuilder.AddVariableInt(Convert.ToUInt32(_int32TMP));
+                        for (_int32TMP2 = 0; _int32TMP2 < _int32TMP; _int32TMP2++) 
                         {
-                            _vector3Int = _vector3IntA[j];
+                            _vector3Int = _vector3IntA[_int32TMP2];
+#if NETCALLER_USE_VARIABLE_SERIALIZATION
+                            syncBufferBuilder.AddVariableInt(_vector3Int.x);
+                            syncBufferBuilder.AddVariableInt(_vector3Int.y);
+                            syncBufferBuilder.AddVariableInt(_vector3Int.z);
+#else
                             _int32TMP = _vector3Int.x;
-                            _buffer[_bufferOffset] = (byte) ((_int32TMP >> Bit24) & _0xFF);
-                            _buffer[_bufferOffset + 1] = (byte) ((_int32TMP >> Bit16) & _0xFF);
-                            _buffer[_bufferOffset + 2] = (byte) ((_int32TMP >> Bit8) & _0xFF);
-                            _buffer[_bufferOffset + 3] = (byte) (_int32TMP & _0xFF);
+                            syncBufferBuilder.Add((byte) ((_int32TMP >> Bit24) & 255u));
+                            syncBufferBuilder.Add((byte) ((_int32TMP >> Bit16) & 255u));
+                            syncBufferBuilder.Add((byte) ((_int32TMP >> Bit8) & 255u));
+                            syncBufferBuilder.Add((byte) (_int32TMP & 255u));
                             _int32TMP = _vector3Int.y;
-                            _buffer[_bufferOffset + 4] = (byte) ((_int32TMP >> Bit24) & _0xFF);
-                            _buffer[_bufferOffset + 5] = (byte) ((_int32TMP >> Bit16) & _0xFF);
-                            _buffer[_bufferOffset + 6] = (byte) ((_int32TMP >> Bit8) & _0xFF);
-                            _buffer[_bufferOffset + 7] = (byte) (_int32TMP & _0xFF);
+                            syncBufferBuilder.Add((byte) ((_int32TMP >> Bit24) & 255u));
+                            syncBufferBuilder.Add((byte) ((_int32TMP >> Bit16) & 255u));
+                            syncBufferBuilder.Add((byte) ((_int32TMP >> Bit8) & 255u));
+                            syncBufferBuilder.Add((byte) (_int32TMP & 255u));
                             _int32TMP = _vector3Int.z;
-                            _buffer[_bufferOffset + 8] = (byte) ((_int32TMP >> Bit24) & _0xFF);
-                            _buffer[_bufferOffset + 9] = (byte) ((_int32TMP >> Bit16) & _0xFF);
-                            _buffer[_bufferOffset + 10] = (byte) ((_int32TMP >> Bit8) & _0xFF);
-                            _buffer[_bufferOffset + 11] = (byte) (_int32TMP & _0xFF);
-                            _bufferOffset += 12;
+                            syncBufferBuilder.Add((byte) ((_int32TMP >> Bit24) & 255u));
+                            syncBufferBuilder.Add((byte) ((_int32TMP >> Bit16) & 255u));
+                            syncBufferBuilder.Add((byte) ((_int32TMP >> Bit8) & 255u));
+                            syncBufferBuilder.Add((byte) (_int32TMP & 255u));
+#endif
                         }
-
                         break;
                     }
                     case Types.Vector4A:
                     {
                         _vector4A = (Vector4[]) data[_iter].Reference;
-                        for (int j = 0; j < _vector4A.Length; j++)
+                        _int32TMP = _vector4A.Length;
+                        
+                        syncBufferBuilder.AddVariableInt(Convert.ToUInt32(_int32TMP));
+                        for (_int32TMP2 = 0; _int32TMP2 < _int32TMP; _int32TMP2++) 
                         {
-                            _vector4 = _vector4A[j];
-                            _tempBytes = BitConverter.GetBytes(_vector4.x);
-                            Array.Copy(_tempBytes, 0, _buffer, _bufferOffset, 4);
-                            _tempBytes = BitConverter.GetBytes(_vector4.y);
-                            Array.Copy(_tempBytes, 0, _buffer, _bufferOffset + 4, 4);
-                            _tempBytes = BitConverter.GetBytes(_vector4.z);
-                            Array.Copy(_tempBytes, 0, _buffer, _bufferOffset + 8, 4);
-                            _tempBytes = BitConverter.GetBytes(_vector4.w);
-                            Array.Copy(_tempBytes, 0, _buffer, _bufferOffset + 12, 4);
-                            _bufferOffset += 16;
+                            _vector4 = _vector4A[_int32TMP2];
+                            syncBufferBuilder.AddBytes(_vector4.x);
+                            syncBufferBuilder.AddBytes(_vector4.y);
+                            syncBufferBuilder.AddBytes(_vector4.z);
+                            syncBufferBuilder.AddBytes(_vector4.w);
                         }
 
                         break;
@@ -1200,34 +1435,43 @@ namespace Miner28.UdonUtils.Network
                     case Types.QuaternionA:
                     {
                         _quaternionA = (Quaternion[]) data[_iter].Reference;
-                        for (int j = 0; j < _quaternionA.Length; j++)
+                        _int32TMP = _quaternionA.Length;
+                        
+                        syncBufferBuilder.AddVariableInt(Convert.ToUInt32(_int32TMP));
+                        for (_int32TMP2 = 0; _int32TMP2 < _int32TMP; ++_int32TMP2)
                         {
-                            _quaternion = _quaternionA[j];
-                            _tempBytes = BitConverter.GetBytes(_quaternion.x);
-                            Array.Copy(_tempBytes, 0, _buffer, _bufferOffset + j * 16, 4);
-                            _tempBytes = BitConverter.GetBytes(_quaternion.y);
-                            Array.Copy(_tempBytes, 0, _buffer, _bufferOffset + j * 16 + 4, 4);
-                            _tempBytes = BitConverter.GetBytes(_quaternion.z);
-                            Array.Copy(_tempBytes, 0, _buffer, _bufferOffset + j * 16 + 8, 4);
-                            _tempBytes = BitConverter.GetBytes(_quaternion.w);
-                            Array.Copy(_tempBytes, 0, _buffer, _bufferOffset + j * 16 + 12, 4);
+                            _quaternion = _quaternionA[_int32TMP2];
+                            syncBufferBuilder.AddBytes(_quaternion.x);
+                            syncBufferBuilder.AddBytes(_quaternion.y);
+                            syncBufferBuilder.AddBytes(_quaternion.z);
+                            syncBufferBuilder.AddBytes(_quaternion.w);
                         }
-
-                        _bufferOffset += _quaternionA.Length * 16;
                         break;
                     }
                 }
             }
 
+            if (syncBuffer.Length != syncBufferBuilder.Count)
+            {
+                syncBuffer = new byte[syncBufferBuilder.Count];
+            }
+            for (int i = 0; i < syncBufferBuilder.Count; i++)
+            {
+                Debug.Log($"SyncBufferBuilder {i} - {syncBufferBuilder[i].Byte}");
+                syncBuffer[i] = syncBufferBuilder[i].Byte;
+            }
+            
+            syncBufferBuilder.Clear();
+            
+
             if (_debug)
             {
-                Log("Sending " + method + " to " + scriptTarget + " with " + data.Length + " parameters");
+                Log(
+                    $"Sending {method} to {scriptTarget} with {data.Length} parameters totaling {syncBuffer.Length} bytes");
             }
+            
 
 
-            methodTarget = method;
-            this._scriptTarget = scriptTarget;
-            _sentOutMethods++;
             RequestSerialization();
         }
 
@@ -1256,24 +1500,30 @@ namespace Miner28.UdonUtils.Network
 
         public override void OnDeserialization()
         {
+            int offset = 0;
+            offset += syncBuffer.ReadVariableInt(offset, out int methodTarget);
             if (_debug)
-                Log($"Deserialization - {methodTarget} - {_buffer.Length} - {_types.Length} - {_lengths.Length}");
+            {
+                Log($"Deserialization - {methodTarget} - Size {syncBuffer.Length}");
+            }
 
             if (methodTarget == -1) return;
-
-            if (_localSentOut >= _sentOutMethods && _localSentOut != 0)
+            
+            offset += syncBuffer.ReadVariableInt(offset, out int scriptTarget);
+            syncBuffer.ReadVariableInt(offset, out int sentOutMethods);
+            if (_localSentOut >= sentOutMethods && _localSentOut != 0)
             {
                 if (_debug)
                     LogWarning(
-                        $"Ignoring deserialization, already sent out Local: {_localSentOut} - Global: {_sentOutMethods}");
-                _localSentOut = _sentOutMethods;
+                        $"Ignoring deserialization, already sent out Local: {_localSentOut} - Global: {sentOutMethods}");
+                _localSentOut = sentOutMethods;
                 return;
             }
 
-            _localSentOut = _sentOutMethods;
+            _localSentOut = sentOutMethods;
 
 
-            var sIndex = Array.IndexOf(sceneInterfacesIds, _scriptTarget);
+            var sIndex = Array.IndexOf(sceneInterfacesIds, scriptTarget);
             if (sIndex == -1)
             {
                 LogError("Script target not found unable to receive and process data");
@@ -1303,87 +1553,400 @@ namespace Miner28.UdonUtils.Network
 
         private void ReceiveData()
         {
-            if (_parameters.Length != _types.Length)
+            _bufferOffset = 0;
+
+            _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out uint length);
+            if (_parameters.Length != length)
             {
-                _parameters = new DataToken[_types.Length];
+                _parameters = new DataToken[length];
             }
 
-            _bufferOffset = 0;
+            
+            _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out int method);
+            _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out int scriptTarget);
+            _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out int sentOutMethods);
 
             for (_iter = 0; _iter < _parameters.Length; _iter++)
             {
-                _ushortLength = _lengths[_iter];
                 string[] chars;
-                switch (_types[_iter])
+
+                Types type = Types.Null;
+                length = 0;
+                int typeByte = syncBuffer[_bufferOffset++];
+                if (typeByte < 100)
+                {
+                    if (typeByte >= (int) Types.BooleanA)
+                    {
+                        _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out length);
+                    }
+                    type = (Types) typeByte;
+                }
+                else
+                {
+                    if (typeByte < Int16V + 10)
+                    {
+                        length = Convert.ToUInt32(typeByte - Int16V);
+                        type = Types.Int16V;
+                    }
+                    else if (typeByte < UInt16V + 10)
+                    {
+                        length = Convert.ToUInt32(typeByte - UInt16V);
+                        type = Types.UInt16V;
+                    }
+                    else if (typeByte < Int32V + 10)
+                    {
+                        length = Convert.ToUInt32(typeByte - Int32V);
+                        type = Types.Int32V;
+                    }
+                    else if (typeByte < UInt32V + 10)
+                    {
+                        length = Convert.ToUInt32(typeByte - UInt32V);
+                        type = Types.UInt32V;
+                    }
+                    else if (typeByte < Int64V + 10)
+                    {
+                        length = Convert.ToUInt32(typeByte - Int64V);
+                        type = Types.Int64V;
+                    }
+                    else if (typeByte < UInt64V + 10)
+                    {
+                        length = Convert.ToUInt32(typeByte - UInt64V);
+                        type = Types.UInt64V;
+                    }
+                    
+                }
+                
+                
+                
+                switch (type)
                 {
                     case Types.Boolean:
-                        _parameters[_iter] = _buffer[_bufferOffset] == BYTE_ONE;
+                        _parameters[_iter] = syncBuffer[_bufferOffset] == BYTE_ONE;
                         _bufferOffset++;
                         break;
                     case Types.Byte:
-                        _parameters[_iter] = _buffer[_bufferOffset];
+                        _parameters[_iter] = syncBuffer[_bufferOffset];
                         _bufferOffset++;
                         break;
                     case Types.SByte:
-                    {
-                        _int32TMP = _buffer[_bufferOffset];
+                        _int32TMP = syncBuffer[_bufferOffset];
                         if (_int32TMP >= 0x80) _int32TMP -= _0xFF;
                         _parameters[_iter] = Convert.ToSByte(_int32TMP);
                         _bufferOffset++;
                         break;
-                    }
-                    case Types.Int16:
-                    {
-                        _int32TMP = (_buffer[_bufferOffset] << Bit8) | _buffer[_bufferOffset + 1];
-                        if (_int32TMP >= 0x8000) _int32TMP -= _0xFFFF;
-                        _parameters[_iter] = Convert.ToInt16(_int32TMP);
-                        _bufferOffset += 2;
+                    case Types.Int16V:
+                        if (length == 0)
+                        {
+                            _parameters[_iter] = Convert.ToInt16(0);
+                            break;
+                        }
+
+                        if (length == 1)
+                        {
+                            _parameters[_iter] = Convert.ToInt16(syncBuffer[_bufferOffset]);
+                            _bufferOffset++;
+                            break;
+                        }
+
+                        if (length == 2)
+                        {
+                            _parameters[_iter] = Convert.ToInt16((syncBuffer[_bufferOffset] << Bit8) |
+                                                                 syncBuffer[_bufferOffset + 1]);
+                            _bufferOffset += 2;
+                            break;
+                        }
                         break;
-                    }
                     case Types.UInt16:
-                        _int32TMP = (_buffer[_bufferOffset] << Bit8) | _buffer[_bufferOffset + 1];
-                        _parameters[_iter] = Convert.ToUInt16(_int32TMP);
-                        _bufferOffset += 2;
+                        if (length == 0)
+                        {
+                            _parameters[_iter] = Convert.ToUInt16(0);
+                            break;
+                        }
+                        
+                        if (length == 1)
+                        {
+                            _parameters[_iter] = Convert.ToUInt16(syncBuffer[_bufferOffset]);
+                            _bufferOffset++;
+                            break;
+                        }
+                        
+                        if (length == 2)
+                        {
+                            _parameters[_iter] = Convert.ToUInt16((syncBuffer[_bufferOffset] << Bit8) |
+                                                                  syncBuffer[_bufferOffset + 1]);
+                            _bufferOffset += 2;
+                            break;
+                        }
                         break;
                     case Types.Int32:
-                        _parameters[_iter] = (_buffer[_bufferOffset] << Bit24) | (_buffer[_bufferOffset + 1] << Bit16) |
-                                             (_buffer[_bufferOffset + 2] << Bit8) | _buffer[_bufferOffset + 3];
-                        _bufferOffset += 4;
+                        if (length == 0)
+                        {
+                            _parameters[_iter] = Convert.ToInt32(0);
+                            break;
+                        }
+                        
+                        if (length == 1)
+                        {
+                            _parameters[_iter] = Convert.ToInt32(syncBuffer[_bufferOffset]);
+                            _bufferOffset++;
+                            break;
+                        }
+                        
+                        if (length == 2)
+                        {
+                            _parameters[_iter] = Convert.ToInt32((syncBuffer[_bufferOffset] << Bit8) |
+                                                                  syncBuffer[_bufferOffset + 1]);
+                            _bufferOffset += 2;
+                            break;
+                        }
+                        
+                        if (length == 3)
+                        {
+                            _parameters[_iter] = Convert.ToInt32((syncBuffer[_bufferOffset] << Bit16) |
+                                                                  (syncBuffer[_bufferOffset + 1] << Bit8) |
+                                                                  syncBuffer[_bufferOffset + 2]);
+                            _bufferOffset += 3;
+                            break;
+                        }
+                        
+                        if (length == 4)
+                        {
+                            _parameters[_iter] = Convert.ToInt32((syncBuffer[_bufferOffset] << Bit24) |
+                                                                  (syncBuffer[_bufferOffset + 1] << Bit16) |
+                                                                  (syncBuffer[_bufferOffset + 2] << Bit8) |
+                                                                  syncBuffer[_bufferOffset + 3]);
+                            _bufferOffset += 4;
+                            break;
+                        }
                         break;
                     case Types.UInt32:
-                        _parameters[_iter] = (uint) ((_buffer[_bufferOffset] << Bit24) |
-                                                     (_buffer[_bufferOffset + 1] << Bit16) |
-                                                     (_buffer[_bufferOffset + 2] << Bit8) | _buffer[_bufferOffset + 3]);
-                        _bufferOffset += 4;
+                        if (length == 0)
+                        {
+                            _parameters[_iter] = Convert.ToUInt32(0);
+                            break;
+                        }
+                        
+                        if (length == 1)
+                        {
+                            _parameters[_iter] = Convert.ToUInt32(syncBuffer[_bufferOffset]);
+                            _bufferOffset++;
+                            break;
+                        }
+                        
+                        if (length == 2)
+                        {
+                            _parameters[_iter] = Convert.ToUInt32((syncBuffer[_bufferOffset] << Bit8) |
+                                                                   syncBuffer[_bufferOffset + 1]);
+                            _bufferOffset += 2;
+                            break;
+                        }
+                        
+                        if (length == 3)
+                        {
+                            _parameters[_iter] = Convert.ToUInt32((syncBuffer[_bufferOffset] << Bit16) |
+                                                                   (syncBuffer[_bufferOffset + 1] << Bit8) |
+                                                                   syncBuffer[_bufferOffset + 2]);
+                            _bufferOffset += 3;
+                            break;
+                        }
+                        
+                        if (length == 4)
+                        {
+                            _parameters[_iter] = Convert.ToUInt32((syncBuffer[_bufferOffset] << Bit24) |
+                                                                   (syncBuffer[_bufferOffset + 1] << Bit16) |
+                                                                   (syncBuffer[_bufferOffset + 2] << Bit8) |
+                                                                   syncBuffer[_bufferOffset + 3]);
+                            _bufferOffset += 4;
+                            break;
+                        }
                         break;
                     case Types.Int64:
-                        _parameters[_iter] = ((long) _buffer[_bufferOffset] << Bit56) |
-                                             ((long) _buffer[_bufferOffset + 1] << Bit48) |
-                                             ((long) _buffer[_bufferOffset + 2] << Bit40) |
-                                             ((long) _buffer[_bufferOffset + 3] << Bit32) |
-                                             ((long) _buffer[_bufferOffset + 4] << Bit24) |
-                                             ((long) _buffer[_bufferOffset + 5] << Bit16) |
-                                             ((long) _buffer[_bufferOffset + 6] << Bit8) |
-                                             _buffer[_bufferOffset + 7];
-                        _bufferOffset += 8;
+                        if (length == 0)
+                        {
+                            _parameters[_iter] = Convert.ToInt64(0);
+                            break;
+                        }
+                        
+                        if (length == 1)
+                        {
+                            _parameters[_iter] = Convert.ToInt64(syncBuffer[_bufferOffset]);
+                            _bufferOffset++;
+                            break;
+                        }
+                        
+                        if (length == 2)
+                        {
+                            _parameters[_iter] = Convert.ToInt64((syncBuffer[_bufferOffset] << Bit8) |
+                                                                  syncBuffer[_bufferOffset + 1]);
+                            _bufferOffset += 2;
+                            break;
+                        }
+                        
+                        if (length == 3)
+                        {
+                            _parameters[_iter] = Convert.ToInt64((syncBuffer[_bufferOffset] << Bit16) |
+                                                                  (syncBuffer[_bufferOffset + 1] << Bit8) |
+                                                                  syncBuffer[_bufferOffset + 2]);
+                            _bufferOffset += 3;
+                            break;
+                        }
+                        
+                        if (length == 4)
+                        {
+                            _parameters[_iter] = Convert.ToInt64((syncBuffer[_bufferOffset] << Bit24) |
+                                                                  (syncBuffer[_bufferOffset + 1] << Bit16) |
+                                                                  (syncBuffer[_bufferOffset + 2] << Bit8) |
+                                                                  syncBuffer[_bufferOffset + 3]);
+                            _bufferOffset += 4;
+                            break;
+                        }
+                        
+                        if (length == 5)
+                        {
+                            _parameters[_iter] = Convert.ToInt64((syncBuffer[_bufferOffset] << Bit32) |
+                                                                  (syncBuffer[_bufferOffset + 1] << Bit24) |
+                                                                  (syncBuffer[_bufferOffset + 2] << Bit16) |
+                                                                  (syncBuffer[_bufferOffset + 3] << Bit8) |
+                                                                  syncBuffer[_bufferOffset + 4]);
+                            _bufferOffset += 5;
+                            break;
+                        }
+                        
+                        if (length == 6)
+                        {
+                            _parameters[_iter] = Convert.ToInt64((syncBuffer[_bufferOffset] << Bit40) |
+                                                                  (syncBuffer[_bufferOffset + 1] << Bit32) |
+                                                                  (syncBuffer[_bufferOffset + 2] << Bit24) |
+                                                                  (syncBuffer[_bufferOffset + 3] << Bit16) |
+                                                                  (syncBuffer[_bufferOffset + 4] << Bit8) |
+                                                                  syncBuffer[_bufferOffset + 5]);
+                            _bufferOffset += 6;
+                            break;
+                        }
+                        
+                        if (length == 7)
+                        {
+                            _parameters[_iter] = Convert.ToInt64((syncBuffer[_bufferOffset] << Bit48) |
+                                                                  (syncBuffer[_bufferOffset + 1] << Bit40) |
+                                                                  (syncBuffer[_bufferOffset + 2] << Bit32) |
+                                                                  (syncBuffer[_bufferOffset + 3] << Bit24) |
+                                                                  (syncBuffer[_bufferOffset + 4] << Bit16) |
+                                                                  (syncBuffer[_bufferOffset + 5] << Bit8) |
+                                                                  syncBuffer[_bufferOffset + 6]);
+                            _bufferOffset += 7;
+                            break;
+                        }
+                        
+                        if (length == 8)
+                        {
+                            _parameters[_iter] = Convert.ToInt64((syncBuffer[_bufferOffset] << Bit56) |
+                                                                  (syncBuffer[_bufferOffset + 1] << Bit48) |
+                                                                  (syncBuffer[_bufferOffset + 2] << Bit40) |
+                                                                  (syncBuffer[_bufferOffset + 3] << Bit32) |
+                                                                  (syncBuffer[_bufferOffset + 4] << Bit24) |
+                                                                  (syncBuffer[_bufferOffset + 5] << Bit16) |
+                                                                  (syncBuffer[_bufferOffset + 6] << Bit8) |
+                                                                  syncBuffer[_bufferOffset + 7]);
+                            _bufferOffset += 8;
+                            break;
+                        }
                         break;
                     case Types.UInt64:
-                        _parameters[_iter] = ((ulong) _buffer[_bufferOffset] << Bit56) |
-                                             ((ulong) _buffer[_bufferOffset + 1] << Bit48) |
-                                             ((ulong) _buffer[_bufferOffset + 2] << Bit40) |
-                                             ((ulong) _buffer[_bufferOffset + 3] << Bit32) |
-                                             ((ulong) _buffer[_bufferOffset + 4] << Bit24) |
-                                             ((ulong) _buffer[_bufferOffset + 5] << Bit16) |
-                                             ((ulong) _buffer[_bufferOffset + 6] << Bit8) |
-                                             _buffer[_bufferOffset + 7];
-
-                        _bufferOffset += 8;
+                        if (length == 0)
+                        {
+                            _parameters[_iter] = Convert.ToUInt64(0);
+                            break;
+                        }
+                        
+                        if (length == 1)
+                        {
+                            _parameters[_iter] = Convert.ToUInt64(syncBuffer[_bufferOffset]);
+                            _bufferOffset++;
+                            break;
+                        }
+                        
+                        if (length == 2)
+                        {
+                            _parameters[_iter] = Convert.ToUInt64((syncBuffer[_bufferOffset] << Bit8) |
+                                                                   syncBuffer[_bufferOffset + 1]);
+                            _bufferOffset += 2;
+                            break;
+                        }
+                        
+                        if (length == 3)
+                        {
+                            _parameters[_iter] = Convert.ToUInt64((syncBuffer[_bufferOffset] << Bit16) |
+                                                                   (syncBuffer[_bufferOffset + 1] << Bit8) |
+                                                                   syncBuffer[_bufferOffset + 2]);
+                            _bufferOffset += 3;
+                            break;
+                        }
+                        
+                        if (length == 4)
+                        {
+                            _parameters[_iter] = Convert.ToUInt64((syncBuffer[_bufferOffset] << Bit24) |
+                                                                   (syncBuffer[_bufferOffset + 1] << Bit16) |
+                                                                   (syncBuffer[_bufferOffset + 2] << Bit8) |
+                                                                   syncBuffer[_bufferOffset + 3]);
+                            _bufferOffset += 4;
+                            break;
+                        }
+                        
+                        if (length == 5)
+                        {
+                            _parameters[_iter] = Convert.ToUInt64((syncBuffer[_bufferOffset] << Bit32) |
+                                                                   (syncBuffer[_bufferOffset + 1] << Bit24) |
+                                                                   (syncBuffer[_bufferOffset + 2] << Bit16) |
+                                                                   (syncBuffer[_bufferOffset + 3] << Bit8) |
+                                                                   syncBuffer[_bufferOffset + 4]);
+                            _bufferOffset += 5;
+                            break;
+                        }
+                        
+                        if (length == 6)
+                        {
+                            _parameters[_iter] = Convert.ToUInt64((syncBuffer[_bufferOffset] << Bit40) |
+                                                                   (syncBuffer[_bufferOffset + 1] << Bit32) |
+                                                                   (syncBuffer[_bufferOffset + 2] << Bit24) |
+                                                                   (syncBuffer[_bufferOffset + 3] << Bit16) |
+                                                                   (syncBuffer[_bufferOffset + 4] << Bit8) |
+                                                                   syncBuffer[_bufferOffset + 5]);
+                            _bufferOffset += 6;
+                            break;
+                        }
+                        
+                        if (length == 7)
+                        {
+                            _parameters[_iter] = Convert.ToUInt64((syncBuffer[_bufferOffset] << Bit48) |
+                                                                   (syncBuffer[_bufferOffset + 1] << Bit40) |
+                                                                   (syncBuffer[_bufferOffset + 2] << Bit32) |
+                                                                   (syncBuffer[_bufferOffset + 3] << Bit24) |
+                                                                   (syncBuffer[_bufferOffset + 4] << Bit16) |
+                                                                   (syncBuffer[_bufferOffset + 5] << Bit8) |
+                                                                   syncBuffer[_bufferOffset + 6]);
+                            _bufferOffset += 7;
+                            break;
+                        }
+                        
+                        if (length == 8)
+                        {
+                            _parameters[_iter] = Convert.ToUInt64((syncBuffer[_bufferOffset] << Bit56) |
+                                                                   (syncBuffer[_bufferOffset + 1] << Bit48) |
+                                                                   (syncBuffer[_bufferOffset + 2] << Bit40) |
+                                                                   (syncBuffer[_bufferOffset + 3] << Bit32) |
+                                                                   (syncBuffer[_bufferOffset + 4] << Bit24) |
+                                                                   (syncBuffer[_bufferOffset + 5] << Bit16) |
+                                                                   (syncBuffer[_bufferOffset + 6] << Bit8) |
+                                                                   syncBuffer[_bufferOffset + 7]);
+                            _bufferOffset += 8;
+                            break;
+                        }
                         break;
                     case Types.Single:
                     {
-                        _uint32Value = ((uint) _buffer[_bufferOffset] << Bit24) |
-                                       ((uint) _buffer[_bufferOffset + 1] << Bit16) |
-                                       ((uint) _buffer[_bufferOffset + 2] << Bit8) | _buffer[_bufferOffset + 3];
+                        _uint32Value = ((uint) syncBuffer[_bufferOffset] << Bit24) |
+                                       ((uint) syncBuffer[_bufferOffset + 1] << Bit16) |
+                                       ((uint) syncBuffer[_bufferOffset + 2] << Bit8) | syncBuffer[_bufferOffset + 3];
                         _bufferOffset += 4;
                         if (_uint32Value == 0 || _uint32Value == FloatSignBit)
                         {
@@ -1424,13 +1987,13 @@ namespace Miner28.UdonUtils.Network
                     }
                     case Types.Double:
                     {
-                        _uint64Value = ((ulong) _buffer[_bufferOffset] << Bit56) |
-                                       ((ulong) _buffer[_bufferOffset + 1] << Bit48) |
-                                       ((ulong) _buffer[_bufferOffset + 2] << Bit40) |
-                                       ((ulong) _buffer[_bufferOffset + 3] << Bit32) |
-                                       ((ulong) _buffer[_bufferOffset + 4] << Bit24) |
-                                       ((ulong) _buffer[_bufferOffset + 5] << Bit16) |
-                                       ((ulong) _buffer[_bufferOffset + 6] << Bit8) | _buffer[_bufferOffset + 7];
+                        _uint64Value = ((ulong) syncBuffer[_bufferOffset] << Bit56) |
+                                       ((ulong) syncBuffer[_bufferOffset + 1] << Bit48) |
+                                       ((ulong) syncBuffer[_bufferOffset + 2] << Bit40) |
+                                       ((ulong) syncBuffer[_bufferOffset + 3] << Bit32) |
+                                       ((ulong) syncBuffer[_bufferOffset + 4] << Bit24) |
+                                       ((ulong) syncBuffer[_bufferOffset + 5] << Bit16) |
+                                       ((ulong) syncBuffer[_bufferOffset + 6] << Bit8) | syncBuffer[_bufferOffset + 7];
 
                         _bufferOffset += 8;
 
@@ -1475,17 +2038,17 @@ namespace Miner28.UdonUtils.Network
                     case Types.Decimal:
                         _parameters[_iter] = new DataToken(new decimal(new[]
                         {
-                            _buffer[_bufferOffset] << Bit24 | _buffer[_bufferOffset + 1] << Bit16 |
-                            _buffer[_bufferOffset + 2] << Bit8 | _buffer[_bufferOffset + 3],
+                            syncBuffer[_bufferOffset] << Bit24 | syncBuffer[_bufferOffset + 1] << Bit16 |
+                            syncBuffer[_bufferOffset + 2] << Bit8 | syncBuffer[_bufferOffset + 3],
 
-                            _buffer[_bufferOffset + 4] << Bit24 | _buffer[_bufferOffset + 5] << Bit16 |
-                            _buffer[_bufferOffset + 6] << Bit8 | _buffer[_bufferOffset + 7],
+                            syncBuffer[_bufferOffset + 4] << Bit24 | syncBuffer[_bufferOffset + 5] << Bit16 |
+                            syncBuffer[_bufferOffset + 6] << Bit8 | syncBuffer[_bufferOffset + 7],
 
-                            _buffer[_bufferOffset + 8] << Bit24 | _buffer[_bufferOffset + 9] << Bit16 |
-                            _buffer[_bufferOffset + 10] << Bit8 | _buffer[_bufferOffset + 11],
+                            syncBuffer[_bufferOffset + 8] << Bit24 | syncBuffer[_bufferOffset + 9] << Bit16 |
+                            syncBuffer[_bufferOffset + 10] << Bit8 | syncBuffer[_bufferOffset + 11],
 
-                            _buffer[_bufferOffset + 12] << Bit24 | _buffer[_bufferOffset + 13] << Bit16 |
-                            _buffer[_bufferOffset + 14] << Bit8 | _buffer[_bufferOffset + 15]
+                            syncBuffer[_bufferOffset + 12] << Bit24 | syncBuffer[_bufferOffset + 13] << Bit16 |
+                            syncBuffer[_bufferOffset + 14] << Bit8 | syncBuffer[_bufferOffset + 15]
                         }));
                         _bufferOffset += 16;
                         break;
@@ -1494,15 +2057,18 @@ namespace Miner28.UdonUtils.Network
                         _int32TMP = 0;
                         _int32TMP2 = 0;
                         _int32TMP3 = 0;
-                        _int32TMP4 = _lengths[_iter];
+                        _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out _int32TMP4); // String length
+                        
                         chars = new string[_int32TMP4];
+                        
+                        _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out _int32TMP4); // String length in bytes
 
                         _int32TMP4 += _bufferOffset;
 
 
                         for (var i = _bufferOffset; i < _int32TMP4; i++)
                         {
-                            _byteTmp = _buffer[i];
+                            _byteTmp = syncBuffer[i];
                             if ((_byteTmp & _0x80) == 0)
                             {
                                 chars[_int32TMP++] = ((char) _byteTmp).ToString();
@@ -1537,135 +2103,135 @@ namespace Miner28.UdonUtils.Network
                         }
 
                         _parameters[_iter] = string.Concat(chars);
-                        _bufferOffset += _lengths[_iter];
+                        _bufferOffset += _int32TMP4 - _bufferOffset;
                         break;
                     }
                     case Types.VRCPlayerApi:
-                        _parameters[_iter] = new DataToken(VRCPlayerApi.GetPlayerById(
-                            _buffer[_bufferOffset] << Bit24 |
-                            _buffer[_bufferOffset + 1] << Bit16 |
-                            _buffer[_bufferOffset + 2] << Bit8 |
-                            _buffer[_bufferOffset + 3]));
-                        _bufferOffset += 4;
+                        _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out _int32TMP);
+                        _parameters[_iter] = new DataToken(VRCPlayerApi.GetPlayerById(_int32TMP));
                         break;
                     case Types.Color:
-                        _tempBytes = new byte[4];
-                        Array.Copy(_buffer, _bufferOffset, _tempBytes, 0, 4);
-                        _singleValue = BitConverter.ToSingle(_tempBytes);
-                        Array.Copy(_buffer, _bufferOffset + 4, _tempBytes, 0, 4);
-                        _singleValue2 = BitConverter.ToSingle(_tempBytes);
-                        Array.Copy(_buffer, _bufferOffset + 8, _tempBytes, 0, 4);
-                        _singleValue3 = BitConverter.ToSingle(_tempBytes);
-                        Array.Copy(_buffer, _bufferOffset + 12, _tempBytes, 0, 4);
-                        _singleValue4 = BitConverter.ToSingle(_tempBytes);
+                        _singleValue = syncBuffer.ReadFloat(_bufferOffset);
+                        _bufferOffset += 4;
+                        _singleValue2 = syncBuffer.ReadFloat(_bufferOffset);
+                        _bufferOffset += 4;
+                        _singleValue3 = syncBuffer.ReadFloat(_bufferOffset);
+                        _bufferOffset += 4;
+                        _singleValue4 = syncBuffer.ReadFloat(_bufferOffset);
+                        _bufferOffset += 4;
                         _parameters[_iter] =
                             new DataToken(new Color(_singleValue, _singleValue2, _singleValue3, _singleValue4));
-                        _bufferOffset += 16;
                         break;
                     case Types.Color32:
-                        _parameters[_iter] = new DataToken(new Color32(_buffer[_bufferOffset],
-                            _buffer[_bufferOffset + 1],
-                            _buffer[_bufferOffset + 2], _buffer[_bufferOffset + 3]));
+                        _parameters[_iter] = new DataToken(new Color32(syncBuffer[_bufferOffset],
+                            syncBuffer[_bufferOffset + 1],
+                            syncBuffer[_bufferOffset + 2], syncBuffer[_bufferOffset + 3]));
                         _bufferOffset += 4;
                         break;
                     case Types.Vector2:
-                        _tempBytes = new byte[4];
-                        Array.Copy(_buffer, _bufferOffset, _tempBytes, 0, 4);
-                        _singleValue = BitConverter.ToSingle(_tempBytes);
-                        Array.Copy(_buffer, _bufferOffset + 4, _tempBytes, 0, 4);
-                        _singleValue2 = BitConverter.ToSingle(_tempBytes);
+                        _singleValue = syncBuffer.ReadFloat(_bufferOffset);
+                        _bufferOffset += 4;
+                        _singleValue2 = syncBuffer.ReadFloat(_bufferOffset);
+                        _bufferOffset += 4;
                         _parameters[_iter] = new DataToken(new Vector2(_singleValue, _singleValue2));
-                        _bufferOffset += 8;
                         break;
                     case Types.Vector2Int:
+#if NETCALLER_USE_VARIABLE_SERIALIZATION
+                        _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out _int32TMP);
+                        _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out _int32TMP2);
+                        _parameters[_iter] = new DataToken(new Vector2Int(_int32TMP, _int32TMP2));
+#else
                         _parameters[_iter] = new DataToken(new Vector2Int(
-                            _buffer[_bufferOffset] << Bit24 |
-                            _buffer[_bufferOffset + 1] << Bit16 |
-                            _buffer[_bufferOffset + 2] << Bit8 |
-                            _buffer[_bufferOffset + 3],
-                            _buffer[_bufferOffset + 4] << Bit24 |
-                            _buffer[_bufferOffset + 5] << Bit16 |
-                            _buffer[_bufferOffset + 6] << Bit8 |
-                            _buffer[_bufferOffset + 7]));
-                        _bufferOffset += 8;
+                            syncBuffer[_bufferOffset] << Bit24 |
+                            syncBuffer[_bufferOffset + 1] << Bit16 |
+                            syncBuffer[_bufferOffset + 2] << Bit8 |
+                            syncBuffer[_bufferOffset + 3],
+                            syncBuffer[_bufferOffset + 4] << Bit24 |
+                            syncBuffer[_bufferOffset + 5] << Bit16 |
+                            syncBuffer[_bufferOffset + 6] << Bit8 |
+                            syncBuffer[_bufferOffset + 7]));
+#endif
                         break;
                     case Types.Vector3:
-                        _tempBytes = new byte[4];
-                        Array.Copy(_buffer, _bufferOffset, _tempBytes, 0, 4);
-                        _singleValue = BitConverter.ToSingle(_tempBytes);
-                        Array.Copy(_buffer, _bufferOffset + 4, _tempBytes, 0, 4);
-                        _singleValue2 = BitConverter.ToSingle(_tempBytes);
-                        Array.Copy(_buffer, _bufferOffset + 8, _tempBytes, 0, 4);
-                        _singleValue3 = BitConverter.ToSingle(_tempBytes);
+                        _singleValue = syncBuffer.ReadFloat(_bufferOffset);
+                        _bufferOffset += 4;
+                        _singleValue2 = syncBuffer.ReadFloat(_bufferOffset);
+                        _bufferOffset += 4;
+                        _singleValue3 = syncBuffer.ReadFloat(_bufferOffset);
+                        _bufferOffset += 4;
                         _parameters[_iter] = new DataToken(new Vector3(_singleValue, _singleValue2, _singleValue3));
-                        _bufferOffset += 12;
                         break;
                     case Types.Vector3Int:
+#if NETCALLER_USE_VARIABLE_SERIALIZATION
+                        _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out _int32TMP);
+                        _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out _int32TMP2);
+                        _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out _int32TMP3);
+                        _parameters[_iter] = new DataToken(new Vector3Int(_int32TMP, _int32TMP2, _int32TMP3));
+#else
                         _parameters[_iter] = new DataToken(new Vector3Int(
-                            _buffer[_bufferOffset] << Bit24 |
-                            _buffer[_bufferOffset + 1] << Bit16 |
-                            _buffer[_bufferOffset + 2] << Bit8 |
-                            _buffer[_bufferOffset + 3],
-                            _buffer[_bufferOffset + 4] << Bit24 |
-                            _buffer[_bufferOffset + 5] << Bit16 |
-                            _buffer[_bufferOffset + 6] << Bit8 |
-                            _buffer[_bufferOffset + 7],
-                            _buffer[_bufferOffset + 8] << Bit24 |
-                            _buffer[_bufferOffset + 9] << Bit16 |
-                            _buffer[_bufferOffset + 10] << Bit8 |
-                            _buffer[_bufferOffset + 11]));
+                            syncBuffer[_bufferOffset] << Bit24 |
+                            syncBuffer[_bufferOffset + 1] << Bit16 |
+                            syncBuffer[_bufferOffset + 2] << Bit8 |
+                            syncBuffer[_bufferOffset + 3],
+                            syncBuffer[_bufferOffset + 4] << Bit24 |
+                            syncBuffer[_bufferOffset + 5] << Bit16 |
+                            syncBuffer[_bufferOffset + 6] << Bit8 |
+                            syncBuffer[_bufferOffset + 7],
+                            syncBuffer[_bufferOffset + 8] << Bit24 |
+                            syncBuffer[_bufferOffset + 9] << Bit16 |
+                            syncBuffer[_bufferOffset + 10] << Bit8 |
+                            syncBuffer[_bufferOffset + 11])
+                        );
+                        
                         _bufferOffset += 12;
+                        #endif
                         break;
                     case Types.Vector4:
-                        _tempBytes = new byte[4];
-                        Array.Copy(_buffer, _bufferOffset, _tempBytes, 0, 4);
-                        _singleValue = BitConverter.ToSingle(_tempBytes);
-                        Array.Copy(_buffer, _bufferOffset + 4, _tempBytes, 0, 4);
-                        _singleValue2 = BitConverter.ToSingle(_tempBytes);
-                        Array.Copy(_buffer, _bufferOffset + 8, _tempBytes, 0, 4);
-                        _singleValue3 = BitConverter.ToSingle(_tempBytes);
-                        Array.Copy(_buffer, _bufferOffset + 12, _tempBytes, 0, 4);
-                        _singleValue4 = BitConverter.ToSingle(_tempBytes);
+                        _singleValue = syncBuffer.ReadFloat(_bufferOffset);
+                        _bufferOffset += 4;
+                        _singleValue2 = syncBuffer.ReadFloat(_bufferOffset);
+                        _bufferOffset += 4;
+                        _singleValue3 = syncBuffer.ReadFloat(_bufferOffset);
+                        _bufferOffset += 4;
+                        _singleValue4 = syncBuffer.ReadFloat(_bufferOffset);
+                        _bufferOffset += 4;
                         _parameters[_iter] =
                             new DataToken(new Vector4(_singleValue, _singleValue2, _singleValue3, _singleValue4));
-                        _bufferOffset += 16;
                         break;
                     case Types.Quaternion:
-                        _tempBytes = new byte[4];
-                        Array.Copy(_buffer, _bufferOffset, _tempBytes, 0, 4);
-                        _singleValue = BitConverter.ToSingle(_tempBytes);
-                        Array.Copy(_buffer, _bufferOffset + 4, _tempBytes, 0, 4);
-                        _singleValue2 = BitConverter.ToSingle(_tempBytes);
-                        Array.Copy(_buffer, _bufferOffset + 8, _tempBytes, 0, 4);
-                        _singleValue3 = BitConverter.ToSingle(_tempBytes);
-                        Array.Copy(_buffer, _bufferOffset + 12, _tempBytes, 0, 4);
-                        _singleValue4 = BitConverter.ToSingle(_tempBytes);
+                        _singleValue = syncBuffer.ReadFloat(_bufferOffset);
+                        _bufferOffset += 4;
+                        _singleValue2 = syncBuffer.ReadFloat(_bufferOffset);
+                        _bufferOffset += 4;
+                        _singleValue3 = syncBuffer.ReadFloat(_bufferOffset);
+                        _bufferOffset += 4;
+                        _singleValue4 = syncBuffer.ReadFloat(_bufferOffset);
                         _parameters[_iter] =
                             new DataToken(new Quaternion(_singleValue, _singleValue2, _singleValue3, _singleValue4));
-                        _bufferOffset += 16;
                         break;
                     case Types.DateTime:
                         _parameters[_iter] = new DataToken(DateTime.FromBinary(
-                            (long) _buffer[_bufferOffset] << Bit56 |
-                            (long) _buffer[_bufferOffset + 1] << Bit48 |
-                            (long) _buffer[_bufferOffset + 2] << Bit40 |
-                            (long) _buffer[_bufferOffset + 3] << Bit32 |
-                            (long) _buffer[_bufferOffset + 4] << Bit24 |
-                            (long) _buffer[_bufferOffset + 5] << Bit16 |
-                            (long) _buffer[_bufferOffset + 6] << Bit8 |
-                            _buffer[_bufferOffset + 7]));
+                            (long) syncBuffer[_bufferOffset] << Bit56 |
+                            (long) syncBuffer[_bufferOffset + 1] << Bit48 |
+                            (long) syncBuffer[_bufferOffset + 2] << Bit40 |
+                            (long) syncBuffer[_bufferOffset + 3] << Bit32 |
+                            (long) syncBuffer[_bufferOffset + 4] << Bit24 |
+                            (long) syncBuffer[_bufferOffset + 5] << Bit16 |
+                            (long) syncBuffer[_bufferOffset + 6] << Bit8 |
+                            syncBuffer[_bufferOffset + 7]));
                         _bufferOffset += 8;
                         break;
                     //Arrays
                     case Types.BooleanA:
                     {
-                        _ushortLength = _lengths[_iter];
-                        _boolA = new bool[_ushortLength];
-
-                        for (var i = 0; i < _ushortLength; i++)
+                        _boolA = new bool[length];
+                        
+                        //Bit unpacking
+                        for (var i = 0; i < length; i++)
                         {
-                            _boolA[i] = _buffer[_bufferOffset] == BYTE_ONE;
-                            _bufferOffset++;
+                            _boolA[i] = (syncBuffer[_bufferOffset] & (1 << i)) != 0;
+                            
+                            if (i % 8 == 7) _bufferOffset++;
                         }
 
                         _parameters[_iter] = new DataToken(_boolA);
@@ -1673,22 +2239,21 @@ namespace Miner28.UdonUtils.Network
                     }
                     case Types.ByteA:
                     {
-                        _ushortLength = _lengths[_iter];
-                        _byteA = new byte[_ushortLength];
+                        _byteA = new byte[length];
+                        
 
-                        Array.Copy(_buffer, _bufferOffset, _byteA, 0, _byteA.Length);
+                        Array.Copy(syncBuffer, _bufferOffset, _byteA, 0, _byteA.Length);
                         _parameters[_iter] = new DataToken(_byteA);
                         _bufferOffset += _byteA.Length;
                         break;
                     }
                     case Types.SByteA:
                     {
-                        _ushortLength = _lengths[_iter];
-                        _sbyteA = new sbyte[_ushortLength];
+                        _sbyteA = new sbyte[length];
 
-                        for (var i = 0; i < _ushortLength; i++)
+                        for (var i = 0; i < length; i++)
                         {
-                            _int32TMP = _buffer[_bufferOffset];
+                            _int32TMP = syncBuffer[_bufferOffset];
                             if (_int32TMP >= 0x80) _int32TMP -= _0xFF;
                             _sbyteA[i] = Convert.ToSByte(_int32TMP);
                             _bufferOffset++;
@@ -1699,15 +2264,17 @@ namespace Miner28.UdonUtils.Network
                     }
                     case Types.Int16A:
                     {
-                        _ushortLength = _lengths[_iter];
-                        _int16A = new short[_ushortLength];
+                        _int16A = new short[length];
 
-                        for (var i = 0; i < _ushortLength; i++)
+                        for (var i = 0; i < length; i++)
                         {
-                            _int32TMP = (_buffer[_bufferOffset] << Bit8) | _buffer[_bufferOffset + 1];
-                            if (_int32TMP >= 0x8000) _int32TMP -= _0xFFFF;
-                            _int16A[i] = Convert.ToInt16(_int32TMP);
+#if NETCALLER_USE_VARIABLE_SERIALIZATION
+                            _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out _int16Value);
+                            _int16A[i] = _int16Value;
+#else
+                            _int16A[i] = Convert.ToInt16((syncBuffer[_bufferOffset] << Bit8) | syncBuffer[_bufferOffset + 1]);
                             _bufferOffset += 2;
+#endif
                         }
 
                         _parameters[_iter] = new DataToken(_int16A);
@@ -1715,14 +2282,16 @@ namespace Miner28.UdonUtils.Network
                     }
                     case Types.UInt16A:
                     {
-                        _ushortLength = _lengths[_iter];
-                        _uint16A = new ushort[_ushortLength];
+                        _uint16A = new ushort[length];
 
-                        for (var i = 0; i < _ushortLength; i++)
+                        for (var i = 0; i < length; i++)
                         {
-                            _uint16A[i] = (ushort) ((ushort) (_buffer[_bufferOffset] << Bit8) |
-                                                    _buffer[_bufferOffset + 1]);
-                            _bufferOffset += 2;
+                            #if NETCALLER_USE_VARIABLE_SERIALIZATION
+                            _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out _uint16Value);
+                            _uint16A[i] = _uint16Value;
+                            #else
+                            _uint16A[i] = Convert.ToUInt16((syncBuffer[_bufferOffset] << Bit8) | syncBuffer[_bufferOffset + 1]);
+                            #endif
                         }
 
                         _parameters[_iter] = new DataToken(_uint16A);
@@ -1730,15 +2299,19 @@ namespace Miner28.UdonUtils.Network
                     }
                     case Types.Int32A:
                     {
-                        _ushortLength = _lengths[_iter];
-                        _int32A = new int[_ushortLength];
-
-
-                        for (var i = 0; i < _ushortLength; i++)
+                        _int32A = new int[length];
+                        
+                        for (var i = 0; i < length; i++)
                         {
-                            _int32A[i] = (_buffer[_bufferOffset] << Bit24) | (_buffer[_bufferOffset + 1] << Bit16) |
-                                         (_buffer[_bufferOffset + 2] << Bit8) | _buffer[_bufferOffset + 3];
+                            #if NETCALLER_USE_VARIABLE_SERIALIZATION
+                            _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out _int32TMP);
+                            _int32A[i] = _int32TMP;
+                            #else
+                            
+                            _int32A[i] = (syncBuffer[_bufferOffset] << Bit24) | (syncBuffer[_bufferOffset + 1] << Bit16) |
+                                         (syncBuffer[_bufferOffset + 2] << Bit8) | syncBuffer[_bufferOffset + 3];
                             _bufferOffset += 4;
+                            #endif
                         }
 
                         _parameters[_iter] = new DataToken(_int32A);
@@ -1746,16 +2319,20 @@ namespace Miner28.UdonUtils.Network
                     }
                     case Types.UInt32A:
                     {
-                        _ushortLength = _lengths[_iter];
-                        _uint32A = new uint[_ushortLength];
+                        _uint32A = new uint[length];
 
 
-                        for (var i = 0; i < _ushortLength; i++)
+                        for (var i = 0; i < length; i++)
                         {
-                            _uint32A[i] = (uint) (_buffer[_bufferOffset] << Bit24) |
-                                          (uint) (_buffer[_bufferOffset + 1] << Bit16) |
-                                          (uint) (_buffer[_bufferOffset + 2] << Bit8) | _buffer[_bufferOffset + 3];
+                            #if NETCALLER_USE_VARIABLE_SERIALIZATION
+                            _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out _uint32Value);
+                            _uint32A[i] = Convert.ToUInt32(_int32TMP);
+                            #else
+                            _uint32A[i] = (uint) (syncBuffer[_bufferOffset] << Bit24) |
+                                          (uint) (syncBuffer[_bufferOffset + 1] << Bit16) |
+                                          (uint) (syncBuffer[_bufferOffset + 2] << Bit8) | syncBuffer[_bufferOffset + 3];
                             _bufferOffset += 4;
+                            #endif
                         }
 
                         _parameters[_iter] = new DataToken(_uint32A);
@@ -1763,19 +2340,24 @@ namespace Miner28.UdonUtils.Network
                     }
                     case Types.Int64A:
                     {
-                        _ushortLength = _lengths[_iter];
-                        _int64A = new long[_ushortLength];
+                        _int64A = new long[length];
 
-                        for (var i = 0; i < _ushortLength; i++)
+                        for (var i = 0; i < length; i++)
                         {
-                            _int64A[i] = ((long) _buffer[_bufferOffset] << Bit56) |
-                                         ((long) _buffer[_bufferOffset + 1] << Bit48) |
-                                         ((long) _buffer[_bufferOffset + 2] << Bit40) |
-                                         ((long) _buffer[_bufferOffset + 3] << Bit32) |
-                                         ((long) _buffer[_bufferOffset + 4] << Bit24) |
-                                         ((long) _buffer[_bufferOffset + 5] << Bit16) |
-                                         ((long) _buffer[_bufferOffset + 6] << Bit8) | _buffer[_bufferOffset + 7];
+                            #if NETCALLER_USE_VARIABLE_SERIALIZATION
+                            _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out _int64Value);
+                            _int64A[i] = _int64Value;
+                            #else
+                            _int64A[i] = ((long) syncBuffer[_bufferOffset] << Bit56) |
+                                         ((long) syncBuffer[_bufferOffset + 1] << Bit48) |
+                                         ((long) syncBuffer[_bufferOffset + 2] << Bit40) |
+                                         ((long) syncBuffer[_bufferOffset + 3] << Bit32) |
+                                         ((long) syncBuffer[_bufferOffset + 4] << Bit24) |
+                                         ((long) syncBuffer[_bufferOffset + 5] << Bit16) |
+                                         ((long) syncBuffer[_bufferOffset + 6] << Bit8) | syncBuffer[_bufferOffset + 7];
                             _bufferOffset += 8;
+                            #endif
+
                         }
 
                         _parameters[_iter] = new DataToken(_int64A);
@@ -1783,19 +2365,23 @@ namespace Miner28.UdonUtils.Network
                     }
                     case Types.UInt64A:
                     {
-                        _ushortLength = _lengths[_iter];
-                        _uint64A = new ulong[_ushortLength];
+                        _uint64A = new ulong[length];
 
-                        for (var i = 0; i < _ushortLength; i++)
+                        for (var i = 0; i < length; i++)
                         {
-                            _uint64A[i] = ((ulong) _buffer[_bufferOffset] << Bit56) |
-                                          ((ulong) _buffer[_bufferOffset + 1] << Bit48) |
-                                          ((ulong) _buffer[_bufferOffset + 2] << Bit40) |
-                                          ((ulong) _buffer[_bufferOffset + 3] << Bit32) |
-                                          ((ulong) _buffer[_bufferOffset + 4] << Bit24) |
-                                          ((ulong) _buffer[_bufferOffset + 5] << Bit16) |
-                                          ((ulong) _buffer[_bufferOffset + 6] << Bit8) | _buffer[_bufferOffset + 7];
+                            #if NETCALLER_USE_VARIABLE_SERIALIZATION
+                            _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out _uint64Value);
+                            _uint64A[i] = _uint64Value;
+                            #else
+                            _uint64A[i] = ((ulong) syncBuffer[_bufferOffset] << Bit56) |
+                                          ((ulong) syncBuffer[_bufferOffset + 1] << Bit48) |
+                                          ((ulong) syncBuffer[_bufferOffset + 2] << Bit40) |
+                                          ((ulong) syncBuffer[_bufferOffset + 3] << Bit32) |
+                                          ((ulong) syncBuffer[_bufferOffset + 4] << Bit24) |
+                                          ((ulong) syncBuffer[_bufferOffset + 5] << Bit16) |
+                                          ((ulong) syncBuffer[_bufferOffset + 6] << Bit8) | syncBuffer[_bufferOffset + 7];
                             _bufferOffset += 8;
+                            #endif
                         }
 
                         _parameters[_iter] = new DataToken(_uint64A);
@@ -1803,14 +2389,11 @@ namespace Miner28.UdonUtils.Network
                     }
                     case Types.SingleA:
                     {
-                        _ushortLength = _lengths[_iter];
-                        _singleA = new float[_ushortLength];
-
-                        _tempBytes = new byte[4];
-                        for (var i = 0; i < _ushortLength; i++)
+                        _singleA = new float[length];
+                        
+                        for (var i = 0; i < length; i++)
                         {
-                            Array.Copy(_buffer, _bufferOffset, _tempBytes, 0, 4);
-                            _singleA[i] = BitConverter.ToSingle(_tempBytes);
+                            _singleA[i] = syncBuffer.ReadFloat(_bufferOffset);
                             _bufferOffset += 4;
                         }
 
@@ -1819,14 +2402,11 @@ namespace Miner28.UdonUtils.Network
                     }
                     case Types.DoubleA:
                     {
-                        _ushortLength = _lengths[_iter];
-                        _doubleA = new double[_ushortLength];
-
-                        _tempBytes = new byte[8];
-                        for (var i = 0; i < _ushortLength; i++)
+                        _doubleA = new double[length];
+                        
+                        for (var i = 0; i < length; i++)
                         {
-                            Array.Copy(_buffer, _bufferOffset, _tempBytes, 0, 8);
-                            _doubleA[i] = BitConverter.ToDouble(_tempBytes);
+                            _doubleA[i] = syncBuffer.ReadDouble(_bufferOffset);
                             _bufferOffset += 8;
                         }
 
@@ -1835,22 +2415,21 @@ namespace Miner28.UdonUtils.Network
                     }
                     case Types.DecimalA:
                     {
-                        _ushortLength = _lengths[_iter];
-                        _decimalA = new decimal[_ushortLength];
+                        _decimalA = new decimal[length];
 
 
-                        for (var i = 0; i < _ushortLength; i++)
+                        for (var i = 0; i < length; i++)
                         {
                             _decimalA[i] = new decimal(new int[]
                             {
-                                _buffer[_bufferOffset] << Bit24 | _buffer[_bufferOffset + 1] << Bit16 |
-                                _buffer[_bufferOffset + 2] << Bit8 | _buffer[_bufferOffset + 3],
-                                _buffer[_bufferOffset + 4] << Bit24 | _buffer[_bufferOffset + 5] << Bit16 |
-                                _buffer[_bufferOffset + 6] << Bit8 | _buffer[_bufferOffset + 7],
-                                _buffer[_bufferOffset + 8] << Bit24 | _buffer[_bufferOffset + 9] << Bit16 |
-                                _buffer[_bufferOffset + 10] << Bit8 | _buffer[_bufferOffset + 11],
-                                _buffer[_bufferOffset + 12] << Bit24 | _buffer[_bufferOffset + 13] << Bit16 |
-                                _buffer[_bufferOffset + 14] << Bit8 | _buffer[_bufferOffset + 15]
+                                syncBuffer[_bufferOffset] << Bit24 | syncBuffer[_bufferOffset + 1] << Bit16 |
+                                syncBuffer[_bufferOffset + 2] << Bit8 | syncBuffer[_bufferOffset + 3],
+                                syncBuffer[_bufferOffset + 4] << Bit24 | syncBuffer[_bufferOffset + 5] << Bit16 |
+                                syncBuffer[_bufferOffset + 6] << Bit8 | syncBuffer[_bufferOffset + 7],
+                                syncBuffer[_bufferOffset + 8] << Bit24 | syncBuffer[_bufferOffset + 9] << Bit16 |
+                                syncBuffer[_bufferOffset + 10] << Bit8 | syncBuffer[_bufferOffset + 11],
+                                syncBuffer[_bufferOffset + 12] << Bit24 | syncBuffer[_bufferOffset + 13] << Bit16 |
+                                syncBuffer[_bufferOffset + 14] << Bit8 | syncBuffer[_bufferOffset + 15]
                             });
                             _bufferOffset += 16;
                         }
@@ -1863,63 +2442,71 @@ namespace Miner28.UdonUtils.Network
                         _int32TMP = 0;
                         _int32TMP2 = 0;
                         _int32TMP3 = 0;
-                        _int32TMP4 = _lengths[_iter];
-                        chars = new string[_int32TMP4];
+                        _stringA = new string[length];
 
-                        _int32TMP4 += _bufferOffset;
+                        _int32TMP4 = _bufferOffset;
 
-
-                        for (var i = _bufferOffset; i < _int32TMP4; i++)
+                        for (int i = 0; i < length; i++)
                         {
-                            _byteTmp = _buffer[i];
-                            if ((_byteTmp & _0x80) == 0)
+                            _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out _uint32Value); // String length
+                            chars = new string[_uint32Value];
+                            
+                            _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out _uint32Value); // String length in bytes
+                            
+                            _int32TMP4 = Convert.ToInt32(_bufferOffset + _uint32Value);
+                            _int32TMP = 0;
+                            _int32TMP2 = 0;
+                            _int32TMP3 = 0;
+                            for (var j = _bufferOffset; j < _int32TMP4; j++)
                             {
-                                chars[_int32TMP++] = ((char) _byteTmp).ToString();
-                            }
-                            else if ((_byteTmp & _0xC0) == _0x80)
-                            {
-                                if (_int32TMP3 > 0)
+                                _byteTmp = syncBuffer[j];
+                                if ((_byteTmp & _0x80) == 0)
                                 {
-                                    _int32TMP2 = _int32TMP2 << 6 | (_byteTmp & _0x3F);
-                                    _int32TMP3--;
-                                    if (_int32TMP3 == 0)
+                                    chars[_int32TMP++] = ((char) _byteTmp).ToString();
+                                }
+                                else if ((_byteTmp & _0xC0) == _0x80)
+                                {
+                                    if (_int32TMP3 > 0)
                                     {
-                                        chars[_int32TMP++] = char.ConvertFromUtf32(_int32TMP2);
+                                        _int32TMP2 = _int32TMP2 << 6 | (_byteTmp & _0x3F);
+                                        _int32TMP3--;
+                                        if (_int32TMP3 == 0)
+                                        {
+                                            chars[_int32TMP++] = char.ConvertFromUtf32(_int32TMP2);
+                                        }
                                     }
                                 }
+                                else if ((_byteTmp & _0xE0) == _0xC0)
+                                {
+                                    _int32TMP3 = 1;
+                                    _int32TMP2 = _byteTmp & _0x1F;
+                                }
+                                else if ((_byteTmp & _0xF0) == _0xE0)
+                                {
+                                    _int32TMP3 = 2;
+                                    _int32TMP2 = _byteTmp & _0x0F;
+                                }
+                                else if ((_byteTmp & _0xF8) == _0xF0)
+                                {
+                                    _int32TMP3 = 3;
+                                    _int32TMP2 = _byteTmp & _0x07;
+                                }
                             }
-                            else if ((_byteTmp & _0xE0) == _0xC0)
-                            {
-                                _int32TMP3 = 1;
-                                _int32TMP2 = _byteTmp & _0x1F;
-                            }
-                            else if ((_byteTmp & _0xF0) == _0xE0)
-                            {
-                                _int32TMP3 = 2;
-                                _int32TMP2 = _byteTmp & _0x0F;
-                            }
-                            else if ((_byteTmp & _0xF8) == _0xF0)
-                            {
-                                _int32TMP3 = 3;
-                                _int32TMP2 = _byteTmp & _0x07;
-                            }
-                        }
 
-                        _parameters[_iter] = new DataToken(string.Concat(chars).Split('\0'));
-                        _bufferOffset += _lengths[_iter];
+                            _stringA[i] = string.Concat(chars);
+                            _bufferOffset += _int32TMP4 - _bufferOffset;
+                        }
+                        
                         break;
                     }
                     case Types.VRCPlayerApiA:
                     {
-                        _ushortLength = _lengths[_iter];
-                        _vrcPlayerApiA = new VRCPlayerApi[_ushortLength];
+                        _vrcPlayerApiA = new VRCPlayerApi[length];
 
-                        for (var i = 0; i < _ushortLength; i++)
+                        for (var i = 0; i < length; i++)
                         {
-                            _int32TMP = (_buffer[_bufferOffset] << Bit24) | (_buffer[_bufferOffset + 1] << Bit16) |
-                                        (_buffer[_bufferOffset + 2] << Bit8) | _buffer[_bufferOffset + 3];
-                            _vrcPlayerApiA[i] = VRCPlayerApi.GetPlayerById(_int32TMP);
-                            _bufferOffset += 4;
+                            _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out _uint32Value);
+                            _vrcPlayerApiA[i] = VRCPlayerApi.GetPlayerById(Convert.ToInt32(_uint32Value));
                         }
 
                         _parameters[_iter] = new DataToken(_vrcPlayerApiA);
@@ -1927,23 +2514,17 @@ namespace Miner28.UdonUtils.Network
                     }
                     case Types.ColorA:
                     {
-                        _ushortLength = _lengths[_iter];
-                        _colorA = new Color[_ushortLength];
+                        _colorA = new Color[length];
 
-                        _tempBytes = new byte[4];
-                        for (var i = 0; i < _ushortLength; i++)
+                        for (var i = 0; i < length; i++)
                         {
-                            Array.Copy(_buffer, _bufferOffset, _tempBytes, 0, 4);
-                            _singleValue = BitConverter.ToSingle(_tempBytes);
+                            _singleValue = syncBuffer.ReadFloat(_bufferOffset);
                             _bufferOffset += 4;
-                            Array.Copy(_buffer, _bufferOffset, _tempBytes, 0, 4);
-                            _singleValue2 = BitConverter.ToSingle(_tempBytes);
+                            _singleValue2 = syncBuffer.ReadFloat(_bufferOffset);
                             _bufferOffset += 4;
-                            Array.Copy(_buffer, _bufferOffset, _tempBytes, 0, 4);
-                            _singleValue3 = BitConverter.ToSingle(_tempBytes);
+                            _singleValue3 = syncBuffer.ReadFloat(_bufferOffset);
                             _bufferOffset += 4;
-                            Array.Copy(_buffer, _bufferOffset, _tempBytes, 0, 4);
-                            _singleValue4 = BitConverter.ToSingle(_tempBytes);
+                            _singleValue4 = syncBuffer.ReadFloat(_bufferOffset);
                             _bufferOffset += 4;
                             _colorA[i] = new Color(_singleValue, _singleValue2, _singleValue3, _singleValue4);
                         }
@@ -1953,13 +2534,12 @@ namespace Miner28.UdonUtils.Network
                     }
                     case Types.Color32A:
                     {
-                        _ushortLength = _lengths[_iter];
-                        _color32A = new Color32[_ushortLength];
+                        _color32A = new Color32[length];
 
-                        for (var i = 0; i < _ushortLength; i++)
+                        for (var i = 0; i < length; i++)
                         {
-                            _color32A[i] = new Color32(_buffer[_bufferOffset], _buffer[_bufferOffset + 1],
-                                _buffer[_bufferOffset + 2], _buffer[_bufferOffset + 3]);
+                            _color32A[i] = new Color32(syncBuffer[_bufferOffset], syncBuffer[_bufferOffset + 1],
+                                syncBuffer[_bufferOffset + 2], syncBuffer[_bufferOffset + 3]);
                             _bufferOffset += 4;
                         }
 
@@ -1968,17 +2548,13 @@ namespace Miner28.UdonUtils.Network
                     }
                     case Types.Vector2A:
                     {
-                        _ushortLength = _lengths[_iter];
-                        _vector2A = new Vector2[_ushortLength];
+                        _vector2A = new Vector2[length];
 
-                        _tempBytes = new byte[4];
-                        for (var i = 0; i < _ushortLength; i++)
+                        for (var i = 0; i < length; i++)
                         {
-                            Array.Copy(_buffer, _bufferOffset, _tempBytes, 0, 4);
-                            _singleValue = BitConverter.ToSingle(_tempBytes);
+                            _singleValue = syncBuffer.ReadFloat(_bufferOffset);
                             _bufferOffset += 4;
-                            Array.Copy(_buffer, _bufferOffset, _tempBytes, 0, 4);
-                            _singleValue2 = BitConverter.ToSingle(_tempBytes);
+                            _singleValue2 = syncBuffer.ReadFloat(_bufferOffset);
                             _bufferOffset += 4;
                             _vector2A[i] = new Vector2(_singleValue, _singleValue2);
                         }
@@ -1988,17 +2564,22 @@ namespace Miner28.UdonUtils.Network
                     }
                     case Types.Vector2IntA:
                     {
-                        _ushortLength = _lengths[_iter];
-                        _vector2IntA = new Vector2Int[_ushortLength];
+                        _vector2IntA = new Vector2Int[length];
 
-                        for (var i = 0; i < _ushortLength; i++)
+                        for (var i = 0; i < length; i++)
                         {
+                            #if NETCALLER_USE_VARIABLE_SERIALIZATION
+                            _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out _int32TMP);
+                            _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out _int32TMP2);
+                            _vector2IntA[i] = new Vector2Int(_int32TMP, _int32TMP2);
+                            #else
                             _vector2IntA[i] = new Vector2Int(
-                                _buffer[_bufferOffset] << Bit24 | _buffer[_bufferOffset + 1] << Bit16 |
-                                _buffer[_bufferOffset + 2] << Bit8 | _buffer[_bufferOffset + 3],
-                                _buffer[_bufferOffset + 4] << Bit24 | _buffer[_bufferOffset + 5] << Bit16 |
-                                _buffer[_bufferOffset + 6] << Bit8 | _buffer[_bufferOffset + 7]);
+                                syncBuffer[_bufferOffset] << Bit24 | syncBuffer[_bufferOffset + 1] << Bit16 |
+                                syncBuffer[_bufferOffset + 2] << Bit8 | syncBuffer[_bufferOffset + 3],
+                                syncBuffer[_bufferOffset + 4] << Bit24 | syncBuffer[_bufferOffset + 5] << Bit16 |
+                                syncBuffer[_bufferOffset + 6] << Bit8 | syncBuffer[_bufferOffset + 7]);
                             _bufferOffset += 8;
+                            #endif
                         }
 
                         _parameters[_iter] = new DataToken(_vector2IntA);
@@ -2006,20 +2587,15 @@ namespace Miner28.UdonUtils.Network
                     }
                     case Types.Vector3A:
                     {
-                        _ushortLength = _lengths[_iter];
-                        _vector3A = new Vector3[_ushortLength];
+                        _vector3A = new Vector3[length];
 
-                        _tempBytes = new byte[4];
-                        for (var i = 0; i < _ushortLength; i++)
+                        for (var i = 0; i < length; i++)
                         {
-                            Array.Copy(_buffer, _bufferOffset, _tempBytes, 0, 4);
-                            _singleValue = BitConverter.ToSingle(_tempBytes);
+                            _singleValue = syncBuffer.ReadFloat(_bufferOffset);
                             _bufferOffset += 4;
-                            Array.Copy(_buffer, _bufferOffset, _tempBytes, 0, 4);
-                            _singleValue2 = BitConverter.ToSingle(_tempBytes);
+                            _singleValue2 = syncBuffer.ReadFloat(_bufferOffset);
                             _bufferOffset += 4;
-                            Array.Copy(_buffer, _bufferOffset, _tempBytes, 0, 4);
-                            _singleValue3 = BitConverter.ToSingle(_tempBytes);
+                            _singleValue3 = syncBuffer.ReadFloat(_bufferOffset);
                             _bufferOffset += 4;
                             _vector3A[i] = new Vector3(_singleValue, _singleValue2, _singleValue3);
                         }
@@ -2029,19 +2605,25 @@ namespace Miner28.UdonUtils.Network
                     }
                     case Types.Vector3IntA:
                     {
-                        _ushortLength = _lengths[_iter];
-                        _vector3IntA = new Vector3Int[_ushortLength];
+                        _vector3IntA = new Vector3Int[length];
 
-                        for (var i = 0; i < _ushortLength; i++)
+                        for (var i = 0; i < length; i++)
                         {
+                            #if NETCALLER_USE_VARIABLE_SERIALIZATION
+                            _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out _int32TMP);
+                            _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out _int32TMP2);
+                            _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out _int32TMP3);
+                            _vector3IntA[i] = new Vector3Int(_int32TMP, _int32TMP2, _int32TMP3);
+                            #else
                             _vector3IntA[i] = new Vector3Int(
-                                _buffer[_bufferOffset] << Bit24 | _buffer[_bufferOffset + 1] << Bit16 |
-                                _buffer[_bufferOffset + 2] << Bit8 | _buffer[_bufferOffset + 3],
-                                _buffer[_bufferOffset + 4] << Bit24 | _buffer[_bufferOffset + 5] << Bit16 |
-                                _buffer[_bufferOffset + 6] << Bit8 | _buffer[_bufferOffset + 7],
-                                _buffer[_bufferOffset + 8] << Bit24 | _buffer[_bufferOffset + 9] << Bit16 |
-                                _buffer[_bufferOffset + 10] << Bit8 | _buffer[_bufferOffset + 11]);
+                                syncBuffer[_bufferOffset] << Bit24 | syncBuffer[_bufferOffset + 1] << Bit16 |
+                                syncBuffer[_bufferOffset + 2] << Bit8 | syncBuffer[_bufferOffset + 3],
+                                syncBuffer[_bufferOffset + 4] << Bit24 | syncBuffer[_bufferOffset + 5] << Bit16 |
+                                syncBuffer[_bufferOffset + 6] << Bit8 | syncBuffer[_bufferOffset + 7],
+                                syncBuffer[_bufferOffset + 8] << Bit24 | syncBuffer[_bufferOffset + 9] << Bit16 |
+                                syncBuffer[_bufferOffset + 10] << Bit8 | syncBuffer[_bufferOffset + 11]);
                             _bufferOffset += 12;
+                            #endif
                         }
 
                         _parameters[_iter] = new DataToken(_vector3IntA);
@@ -2049,23 +2631,17 @@ namespace Miner28.UdonUtils.Network
                     }
                     case Types.Vector4A:
                     {
-                        _ushortLength = _lengths[_iter];
-                        _vector4A = new Vector4[_ushortLength];
+                        _vector4A = new Vector4[length];
 
-                        _tempBytes = new byte[4];
-                        for (var i = 0; i < _ushortLength; i++)
+                        for (var i = 0; i < length; i++)
                         {
-                            Array.Copy(_buffer, _bufferOffset, _tempBytes, 0, 4);
-                            _singleValue = BitConverter.ToSingle(_tempBytes);
+                            _singleValue = syncBuffer.ReadFloat(_bufferOffset);
                             _bufferOffset += 4;
-                            Array.Copy(_buffer, _bufferOffset, _tempBytes, 0, 4);
-                            _singleValue2 = BitConverter.ToSingle(_tempBytes);
+                            _singleValue2 = syncBuffer.ReadFloat(_bufferOffset);
                             _bufferOffset += 4;
-                            Array.Copy(_buffer, _bufferOffset, _tempBytes, 0, 4);
-                            _singleValue3 = BitConverter.ToSingle(_tempBytes);
+                            _singleValue3 = syncBuffer.ReadFloat(_bufferOffset);
                             _bufferOffset += 4;
-                            Array.Copy(_buffer, _bufferOffset, _tempBytes, 0, 4);
-                            _singleValue4 = BitConverter.ToSingle(_tempBytes);
+                            _singleValue4 = syncBuffer.ReadFloat(_bufferOffset);
                             _bufferOffset += 4;
                             _vector4A[i] = new Vector4(_singleValue, _singleValue2, _singleValue3, _singleValue4);
                         }
@@ -2075,23 +2651,17 @@ namespace Miner28.UdonUtils.Network
                     }
                     case Types.QuaternionA:
                     {
-                        _ushortLength = _lengths[_iter];
-                        _quaternionA = new Quaternion[_ushortLength];
+                        _quaternionA = new Quaternion[length];
 
-                        _tempBytes = new byte[4];
-                        for (var i = 0; i < _ushortLength; i++)
+                        for (var i = 0; i < length; i++)
                         {
-                            Array.Copy(_buffer, _bufferOffset, _tempBytes, 0, 4);
-                            _singleValue = BitConverter.ToSingle(_tempBytes);
+                            _singleValue = syncBuffer.ReadFloat(_bufferOffset);
                             _bufferOffset += 4;
-                            Array.Copy(_buffer, _bufferOffset, _tempBytes, 0, 4);
-                            _singleValue2 = BitConverter.ToSingle(_tempBytes);
+                            _singleValue2 = syncBuffer.ReadFloat(_bufferOffset);
                             _bufferOffset += 4;
-                            Array.Copy(_buffer, _bufferOffset, _tempBytes, 0, 4);
-                            _singleValue3 = BitConverter.ToSingle(_tempBytes);
+                            _singleValue3 = syncBuffer.ReadFloat(_bufferOffset);
                             _bufferOffset += 4;
-                            Array.Copy(_buffer, _bufferOffset, _tempBytes, 0, 4);
-                            _singleValue4 = BitConverter.ToSingle(_tempBytes);
+                            _singleValue4 = syncBuffer.ReadFloat(_bufferOffset);
                             _bufferOffset += 4;
                             _quaternionA[i] = new Quaternion(_singleValue, _singleValue2, _singleValue3, _singleValue4);
                         }
@@ -2125,6 +2695,8 @@ namespace Miner28.UdonUtils.Network
                 enumType = Types.Null;
             else
                 enumType = (Types) typeId;
+            
+            Log($"Setting {variable} to {token} ({enumType})");
 
             switch (enumType)
             {
