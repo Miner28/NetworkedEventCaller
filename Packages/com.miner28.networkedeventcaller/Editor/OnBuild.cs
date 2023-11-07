@@ -22,6 +22,8 @@ namespace Miner28.UdonUtils.Network.Editor
             var networkManager = objectsInScene.Find(x => x.GetComponent<NetworkManager>() != null)
                 ?.GetComponent<NetworkManager>();
 
+            if (networkManager == null) return; //There is no NetworkManager in the scene so we don't need to do anything.
+
             NetworkManagerEditor.HandleNetworkSetup();
 
             //List of Objects implementing NetworkInterface
@@ -68,6 +70,8 @@ namespace Miner28.UdonUtils.Network.Editor
             var objectsInScene = GetAllObjectsInScene();
             var networkManager = objectsInScene.Find(x => x.GetComponent<NetworkManager>() != null)
                 ?.GetComponent<NetworkManager>();
+
+            if (networkManager == null) return; //There is no NetworkManager in the scene so we don't need to do anything.
 
             Patcher.LoadMethodInfos();
             Patcher.FilterMethodInfos();
