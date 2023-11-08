@@ -1,8 +1,6 @@
 ﻿using System;
-using System.Data.SqlClient;
 using UdonSharp;
 using UnityEngine;
-using UnityEngine.Serialization;
 using VRC.SDK3.Data;
 using VRC.SDKBase;
 
@@ -10,7 +8,7 @@ namespace Miner28.UdonUtils.Network
 {
     public class NetworkInterface : UdonSharpBehaviour
     {
-        [Header("Network Interface ID")] public int networkID = 0;
+        [Header("Network Interface ID")] public uint networkID = 0;
         
         
         [HideInInspector] public NetworkManager networkManagerInternal;
@@ -32,10 +30,12 @@ namespace Miner28.UdonUtils.Network
                 _callerAssigned = true;
             }
             
-            _caller._PrepareSend((int) target, $"{_udonClassName}.{methodName}", networkID, paramTokens);
+            _caller._PrepareSend(Convert.ToUInt32(target), $"{_udonClassName}.{methodName}", networkID, paramTokens);
         }
         
-        public void SendMethodNetworked(string methodName, VRCPlayerApi target, params DataToken[] paramTokens)
+        /*
+         TODO - Implement this
+         public void SendMethodNetworked(string methodName, VRCPlayerApi target, params DataToken[] paramTokens)
         {
             if (!_callerAssigned)
             {
@@ -48,8 +48,9 @@ namespace Miner28.UdonUtils.Network
                 _callerAssigned = true;
             }
             
-            _caller._PrepareSend(target.playerId + 100, $"{_udonClassName}.{methodName}", networkID, paramTokens);
+            _caller._PrepareSend(Convert.ToUInt32(target.playerId + 100), $"{_udonClassName}.{methodName}", networkID, paramTokens);
         }
+        */
         
 
         internal void SetupInterface()

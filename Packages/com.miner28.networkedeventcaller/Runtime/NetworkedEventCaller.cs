@@ -14,7 +14,7 @@ namespace Miner28.UdonUtils.Network
     {
         [HideInInspector] public NetworkManager networkManager;
         [HideInInspector] public NetworkInterface[] sceneInterfaces;
-        [HideInInspector] public int[] sceneInterfacesIds;
+        [HideInInspector] public uint[] sceneInterfacesIds;
 
         private DataDictionary _methodInfos;
         private DataList _methodInfosKeys;
@@ -202,7 +202,7 @@ namespace Miner28.UdonUtils.Network
 
         private DataToken[] _parameters = new DataToken[0];
         private int _bufferOffset;
-        private int _localSentOut;
+        private uint _localSentOut;
         
         [UdonSynced] [NonSerialized] public byte[] syncBuffer = new byte[0];
         
@@ -241,10 +241,10 @@ namespace Miner28.UdonUtils.Network
             }
         }
         
-        internal void _PrepareSend(int intTarget, string method, int scriptTarget, DataToken[] data)
+        internal void _PrepareSend(uint intTarget, string method, uint scriptTarget, DataToken[] data)
         {
             var target = (SyncTarget) intTarget;
-            if (intTarget > 100) intTarget -= 100;
+            if (intTarget > 100) intTarget -= 100; //TODO - Add support for sending to specific player
 
             var sIndex = Array.IndexOf(sceneInterfacesIds, scriptTarget);
             if (sIndex == -1)
@@ -260,17 +260,19 @@ namespace Miner28.UdonUtils.Network
                     $"<color=#FF0000>Invalid method: {method}</color> - {method} can't send method if method is invalid, check if method is public and marked as [NetworkedMethod]");
                 return;
             }
+            
+            uint methodIdUint = (uint) methodId;
 
             if (_debug)
             {
-                Log($"Preparing Send - {method} - {methodId} - {scriptTarget} - {sIndex} - {target}");
+                Log($"Preparing Send - {method} - {methodIdUint} - {scriptTarget} - {sIndex} - {target}");
             }
             
 
             //Limit sending method every 0.125 seconds - 8 times per second 
             if (Time.realtimeSinceStartup - _lastSendTime < 0.125f)
             {
-                _methodQueue.Add(methodId);
+                _methodQueue.Add(methodIdUint);
                 _targetQueue.Add(scriptTarget);
                 DataToken[] dataTokens = new DataToken[data.Length];
                 Array.Copy(data, dataTokens, data.Length);
@@ -284,7 +286,7 @@ namespace Miner28.UdonUtils.Network
             else
             {
                 _lastSendTime = Time.realtimeSinceStartup;
-                SendData(methodId, scriptTarget, data);
+                SendData(methodIdUint, scriptTarget, data);
             }
             
             if (target == SyncTarget.All || target == SyncTarget.Local)
@@ -312,7 +314,7 @@ namespace Miner28.UdonUtils.Network
             
         }
 
-        private void SendData(int method, int scriptTarget, DataToken[] data)
+        private void SendData(uint method, uint scriptTarget, DataToken[] data)
         {
             var sIndex = Array.IndexOf(sceneInterfacesIds, scriptTarget);
             if (sIndex == -1)
@@ -364,7 +366,7 @@ namespace Miner28.UdonUtils.Network
 
                 if (typeId < (int) Types.Int16 || typeId > (int) Types.UInt64)
                 {
-                    syncBufferBuilder.Add((byte) typeId);
+                    syncBufferBuilder.Add(Convert.ToByte(typeId));
                 }
 
 
@@ -403,14 +405,18 @@ namespace Miner28.UdonUtils.Network
                     case Types.UInt16:
                         _uint16Value = data[_iter].UShort;
                         
-                        if (_uint16Value < _0xFF)
+                        if (_uint16Value == 0)
                         {
                             syncBufferBuilder.Add(UInt16V);
+                        }
+                        else if (_uint16Value < _0xFF)
+                        {
+                            syncBufferBuilder.Add(Convert.ToByte(UInt16V+1));
                             syncBufferBuilder.Add((byte) _uint16Value);
                         }
                         else
                         {
-                            syncBufferBuilder.Add(Convert.ToByte(UInt16V+1));
+                            syncBufferBuilder.Add(Convert.ToByte(UInt16V+2));
                             syncBufferBuilder.Add((byte) ((_uint16Value >> Bit8) & _0xFF));
                             syncBufferBuilder.Add((byte) (_uint16Value & _0xFF));
                         }
@@ -418,27 +424,31 @@ namespace Miner28.UdonUtils.Network
                     case Types.Int32:
                         _int32TMP2 = data[_iter].Int;
                         
-                        if (_int32TMP2 < _0xFF)
+                        if (_int32TMP2 == 0)
                         {
                             syncBufferBuilder.Add(Int32V);
+                        }
+                        else if (_int32TMP2 < _0xFF)
+                        {
+                            syncBufferBuilder.Add(Convert.ToByte(Int32V+1));
                             syncBufferBuilder.Add((byte) _int32TMP2);
                         }
                         else if (_int32TMP2 < _0xFFFF)
                         {
-                            syncBufferBuilder.Add(Convert.ToByte(Int32V+1));
+                            syncBufferBuilder.Add(Convert.ToByte(Int32V+2));
                             syncBufferBuilder.Add((byte) ((_int32TMP2 >> Bit8) & _0xFF));
                             syncBufferBuilder.Add((byte) (_int32TMP2 & _0xFF));
                         }
                         else if (_int32TMP2 < 0xFFFFFF)
                         {
-                            syncBufferBuilder.Add(Convert.ToByte(Int32V+2));
+                            syncBufferBuilder.Add(Convert.ToByte(Int32V+3));
                             syncBufferBuilder.Add((byte) ((_int32TMP2 >> Bit16) & _0xFF));
                             syncBufferBuilder.Add((byte) ((_int32TMP2 >> Bit8) & _0xFF));
                             syncBufferBuilder.Add((byte) (_int32TMP2 & _0xFF));
                         }
                         else
                         {
-                            syncBufferBuilder.Add(Convert.ToByte(Int32V+3));
+                            syncBufferBuilder.Add(Convert.ToByte(Int32V+4));
                             syncBufferBuilder.Add((byte) ((_int32TMP2 >> Bit24) & _0xFF));
                             syncBufferBuilder.Add((byte) ((_int32TMP2 >> Bit16) & _0xFF));
                             syncBufferBuilder.Add((byte) ((_int32TMP2 >> Bit8) & _0xFF));
@@ -449,27 +459,31 @@ namespace Miner28.UdonUtils.Network
                     case Types.UInt32:
                         _uint32Value = data[_iter].UInt;
                         
-                        if (_uint32Value < _0xFF)
+                        if (_uint32Value == 0)
                         {
                             syncBufferBuilder.Add(UInt32V);
+                        }
+                        else if (_uint32Value < _0xFF)
+                        {
+                            syncBufferBuilder.Add(Convert.ToByte(UInt32V+1));
                             syncBufferBuilder.Add((byte) _uint32Value);
                         }
                         else if (_uint32Value < _0xFFFF)
                         {
-                            syncBufferBuilder.Add(Convert.ToByte(UInt32V+1));
+                            syncBufferBuilder.Add(Convert.ToByte(UInt32V+2));
                             syncBufferBuilder.Add((byte) ((_uint32Value >> Bit8) & _0xFF));
                             syncBufferBuilder.Add((byte) (_uint32Value & _0xFF));
                         }
                         else if (_uint32Value < 0xFFFFFF)
                         {
-                            syncBufferBuilder.Add(Convert.ToByte(UInt32V+2));
+                            syncBufferBuilder.Add(Convert.ToByte(UInt32V+3));
                             syncBufferBuilder.Add((byte) ((_uint32Value >> Bit16) & _0xFF));
                             syncBufferBuilder.Add((byte) ((_uint32Value >> Bit8) & _0xFF));
                             syncBufferBuilder.Add((byte) (_uint32Value & _0xFF));
                         }
                         else
                         {
-                            syncBufferBuilder.Add(Convert.ToByte(UInt32V+3));
+                            syncBufferBuilder.Add(Convert.ToByte(UInt32V+4));
                             syncBufferBuilder.Add((byte) ((_uint32Value >> Bit24) & _0xFF));
                             syncBufferBuilder.Add((byte) ((_uint32Value >> Bit16) & _0xFF));
                             syncBufferBuilder.Add((byte) ((_uint32Value >> Bit8) & _0xFF));
@@ -479,27 +493,31 @@ namespace Miner28.UdonUtils.Network
                     case Types.Int64:
                         _int64Value = data[_iter].Long;
 
-                        if (_int64Value < _0xFF)
+                        if (_int64Value == 0)
                         {
                             syncBufferBuilder.Add(Int64V);
+                        }
+                        else if (_int64Value < _0xFF)
+                        {
+                            syncBufferBuilder.Add(Convert.ToByte(Int64V+1));
                             syncBufferBuilder.Add((byte) _int64Value);
                         }
                         else if (_int64Value < _0xFFFF)
                         {
-                            syncBufferBuilder.Add(Convert.ToByte(Int64V+1));
+                            syncBufferBuilder.Add(Convert.ToByte(Int64V+2));
                             syncBufferBuilder.Add((byte) ((_int64Value >> Bit8) & _0xFF));
                             syncBufferBuilder.Add((byte) (_int64Value & _0xFF));
                         }
                         else if (_int64Value < 0xFFFFFF)
                         {
-                            syncBufferBuilder.Add(Convert.ToByte(Int64V+2));
+                            syncBufferBuilder.Add(Convert.ToByte(Int64V+3));
                             syncBufferBuilder.Add((byte) ((_int64Value >> Bit16) & _0xFF));
                             syncBufferBuilder.Add((byte) ((_int64Value >> Bit8) & _0xFF));
                             syncBufferBuilder.Add((byte) (_int64Value & _0xFF));
                         }
                         else if (_int64Value < 0xFFFFFFFF)
                         {
-                            syncBufferBuilder.Add(Convert.ToByte(Int64V+3));
+                            syncBufferBuilder.Add(Convert.ToByte(Int64V+4));
                             syncBufferBuilder.Add((byte) ((_int64Value >> Bit24) & _0xFF));
                             syncBufferBuilder.Add((byte) ((_int64Value >> Bit16) & _0xFF));
                             syncBufferBuilder.Add((byte) ((_int64Value >> Bit8) & _0xFF));
@@ -507,7 +525,7 @@ namespace Miner28.UdonUtils.Network
                         }
                         else if (_int64Value < 0xFFFFFFFFFF)
                         {
-                            syncBufferBuilder.Add(Convert.ToByte(Int64V+4));
+                            syncBufferBuilder.Add(Convert.ToByte(Int64V+5));
                             syncBufferBuilder.Add((byte) ((_int64Value >> Bit32) & _0xFF));
                             syncBufferBuilder.Add((byte) ((_int64Value >> Bit24) & _0xFF));
                             syncBufferBuilder.Add((byte) ((_int64Value >> Bit16) & _0xFF));
@@ -516,7 +534,7 @@ namespace Miner28.UdonUtils.Network
                         }
                         else if (_int64Value < 0xFFFFFFFFFFFF)
                         {
-                            syncBufferBuilder.Add(Convert.ToByte(Int64V+5));
+                            syncBufferBuilder.Add(Convert.ToByte(Int64V+6));
                             syncBufferBuilder.Add((byte) ((_int64Value >> Bit40) & _0xFF));
                             syncBufferBuilder.Add((byte) ((_int64Value >> Bit32) & _0xFF));
                             syncBufferBuilder.Add((byte) ((_int64Value >> Bit24) & _0xFF));
@@ -526,7 +544,7 @@ namespace Miner28.UdonUtils.Network
                         }
                         else if (_int64Value < 0xFFFFFFFFFFFFFF)
                         {
-                            syncBufferBuilder.Add(Convert.ToByte(Int64V+6));
+                            syncBufferBuilder.Add(Convert.ToByte(Int64V+7));
                             syncBufferBuilder.Add((byte) ((_int64Value >> Bit48) & _0xFF));
                             syncBufferBuilder.Add((byte) ((_int64Value >> Bit40) & _0xFF));
                             syncBufferBuilder.Add((byte) ((_int64Value >> Bit32) & _0xFF));
@@ -537,7 +555,7 @@ namespace Miner28.UdonUtils.Network
                         }
                         else
                         {
-                            syncBufferBuilder.Add(Convert.ToByte(Int64V+7));
+                            syncBufferBuilder.Add(Convert.ToByte(Int64V+8));
                             syncBufferBuilder.Add((byte) ((_int64Value >> Bit56) & _0xFF));
                             syncBufferBuilder.Add((byte) ((_int64Value >> Bit48) & _0xFF));
                             syncBufferBuilder.Add((byte) ((_int64Value >> Bit40) & _0xFF));
@@ -550,27 +568,32 @@ namespace Miner28.UdonUtils.Network
                         break;
                     case Types.UInt64:
                         _uint64Value = data[_iter].ULong;
-                        if (_uint64Value < _0xFF)
+                        
+                        if (_uint64Value == 0)
                         {
                             syncBufferBuilder.Add(UInt64V);
+                        }
+                        else if (_uint64Value < _0xFF)
+                        {
+                            syncBufferBuilder.Add(Convert.ToByte(UInt64V+1));
                             syncBufferBuilder.Add((byte) _uint64Value);
                         }
                         else if (_uint64Value < _0xFFFF)
                         {
-                            syncBufferBuilder.Add(Convert.ToByte(UInt64V+1));
+                            syncBufferBuilder.Add(Convert.ToByte(UInt64V+2));
                             syncBufferBuilder.Add((byte) ((_uint64Value >> Bit8) & _0xFF));
                             syncBufferBuilder.Add((byte) (_uint64Value & _0xFF));
                         }
                         else if (_uint64Value < 0xFFFFFF)
                         {
-                            syncBufferBuilder.Add(Convert.ToByte(UInt64V+2));
+                            syncBufferBuilder.Add(Convert.ToByte(UInt64V+3));
                             syncBufferBuilder.Add((byte) ((_uint64Value >> Bit16) & _0xFF));
                             syncBufferBuilder.Add((byte) ((_uint64Value >> Bit8) & _0xFF));
                             syncBufferBuilder.Add((byte) (_uint64Value & _0xFF));
                         }
                         else if (_uint64Value < 0xFFFFFFFF)
                         {
-                            syncBufferBuilder.Add(Convert.ToByte(UInt64V + 3));
+                            syncBufferBuilder.Add(Convert.ToByte(UInt64V + 4));
                             syncBufferBuilder.Add((byte) ((_uint64Value >> Bit24) & _0xFF));
                             syncBufferBuilder.Add((byte) ((_uint64Value >> Bit16) & _0xFF));
                             syncBufferBuilder.Add((byte) ((_uint64Value >> Bit8) & _0xFF));
@@ -578,7 +601,7 @@ namespace Miner28.UdonUtils.Network
                         }
                         else if (_uint64Value < 0xFFFFFFFFFF)
                         {
-                            syncBufferBuilder.Add(Convert.ToByte(UInt64V+4));
+                            syncBufferBuilder.Add(Convert.ToByte(UInt64V+5));
                             syncBufferBuilder.Add((byte) ((_uint64Value >> Bit32) & _0xFF));
                             syncBufferBuilder.Add((byte) ((_uint64Value >> Bit24) & _0xFF));
                             syncBufferBuilder.Add((byte) ((_uint64Value >> Bit16) & _0xFF));
@@ -587,7 +610,7 @@ namespace Miner28.UdonUtils.Network
                         }
                         else if (_uint64Value < 0xFFFFFFFFFFFF)
                         {
-                            syncBufferBuilder.Add(Convert.ToByte(UInt64V + 5));
+                            syncBufferBuilder.Add(Convert.ToByte(UInt64V + 6));
                             syncBufferBuilder.Add((byte) ((_uint64Value >> Bit40) & _0xFF));
                             syncBufferBuilder.Add((byte) ((_uint64Value >> Bit32) & _0xFF));
                             syncBufferBuilder.Add((byte) ((_uint64Value >> Bit24) & _0xFF));
@@ -597,7 +620,7 @@ namespace Miner28.UdonUtils.Network
                         }
                         else if (_uint64Value < 0xFFFFFFFFFFFFFF)
                         {
-                            syncBufferBuilder.Add(Convert.ToByte(UInt64V + 6));
+                            syncBufferBuilder.Add(Convert.ToByte(UInt64V + 7));
                             syncBufferBuilder.Add((byte) ((_uint64Value >> Bit48) & _0xFF));
                             syncBufferBuilder.Add((byte) ((_uint64Value >> Bit40) & _0xFF));
                             syncBufferBuilder.Add((byte) ((_uint64Value >> Bit32) & _0xFF));
@@ -608,7 +631,7 @@ namespace Miner28.UdonUtils.Network
                         }
                         else
                         {
-                            syncBufferBuilder.Add(Convert.ToByte(UInt64V + 7));
+                            syncBufferBuilder.Add(Convert.ToByte(UInt64V + 8));
                             syncBufferBuilder.Add((byte) ((_uint64Value >> Bit56) & _0xFF));
                             syncBufferBuilder.Add((byte) ((_uint64Value >> Bit48) & _0xFF));
                             syncBufferBuilder.Add((byte) ((_uint64Value >> Bit40) & _0xFF));
@@ -772,7 +795,7 @@ namespace Miner28.UdonUtils.Network
                         _int32TMP2 = BitConverter.GetStringSizeInBytes(_stringData);
                         
                         syncBufferBuilder.AddVariableInt(Convert.ToUInt32(_int32TMP));
-                        syncBufferBuilder.AddVariableInt(_int32TMP2);
+                        syncBufferBuilder.AddVariableInt(Convert.ToUInt32(_int32TMP2));
                         
                         
 
@@ -877,6 +900,8 @@ namespace Miner28.UdonUtils.Network
                         break;
                     case Types.DateTime:
                         _int64Value = ((DateTime) data[_iter].Reference).ToBinary();
+                        
+                        LogWarning("Encoding DateTime");
                         
                         syncBufferBuilder.Add((byte) ((_int64Value >> Bit56) & _0xFF));
                         syncBufferBuilder.Add((byte) ((_int64Value >> Bit48) & _0xFF));
@@ -1485,8 +1510,8 @@ namespace Miner28.UdonUtils.Network
 
             Log($"Handling queue {_methodQueue.Count}");
 
-            var method = _methodQueue[0].Int;
-            var target = _targetQueue[0].Int;
+            var method = _methodQueue[0].UInt;
+            var target = _targetQueue[0].UInt;
             var data = (DataToken[]) _dataQueue[0].Reference;
 
             _methodQueue.RemoveAt(0);
@@ -1501,7 +1526,8 @@ namespace Miner28.UdonUtils.Network
         public override void OnDeserialization()
         {
             int offset = 0;
-            offset += syncBuffer.ReadVariableInt(offset, out int methodTarget);
+            offset += syncBuffer.ReadVariableInt(offset, out uint length);
+            offset += syncBuffer.ReadVariableInt(offset, out uint methodTarget);
             if (_debug)
             {
                 Log($"Deserialization - {methodTarget} - Size {syncBuffer.Length}");
@@ -1509,8 +1535,8 @@ namespace Miner28.UdonUtils.Network
 
             if (methodTarget == -1) return;
             
-            offset += syncBuffer.ReadVariableInt(offset, out int scriptTarget);
-            syncBuffer.ReadVariableInt(offset, out int sentOutMethods);
+            offset += syncBuffer.ReadVariableInt(offset, out uint scriptTarget);
+            syncBuffer.ReadVariableInt(offset, out uint sentOutMethods);
             if (_localSentOut >= sentOutMethods && _localSentOut != 0)
             {
                 if (_debug)
@@ -1533,7 +1559,7 @@ namespace Miner28.UdonUtils.Network
             ReceiveData(); //Convert data from buffer to parameters
 
             _targetScript = sceneInterfaces[sIndex];
-            var methodKey = _methodInfosKeys[methodTarget];
+            var methodKey = _methodInfosKeys[(int) methodTarget];
             var methodInfo = _methodInfos[methodKey].DataDictionary;
 
             if (methodInfo.TryGetValue("parameters", out var parametersToken))
@@ -1562,9 +1588,9 @@ namespace Miner28.UdonUtils.Network
             }
 
             
-            _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out int method);
-            _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out int scriptTarget);
-            _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out int sentOutMethods);
+            _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out uint method);
+            _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out uint scriptTarget);
+            _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out uint sentOutMethods);
 
             for (_iter = 0; _iter < _parameters.Length; _iter++)
             {
@@ -1572,7 +1598,8 @@ namespace Miner28.UdonUtils.Network
 
                 Types type = Types.Null;
                 length = 0;
-                int typeByte = syncBuffer[_bufferOffset++];
+                byte typeByte = syncBuffer[_bufferOffset++];
+                
                 if (typeByte < 100)
                 {
                     if (typeByte >= (int) Types.BooleanA)
@@ -1617,6 +1644,8 @@ namespace Miner28.UdonUtils.Network
                 }
                 
                 
+                LogWarning($"About to read {type} - {length} - {_bufferOffset}");
+                
                 
                 switch (type)
                 {
@@ -1644,7 +1673,7 @@ namespace Miner28.UdonUtils.Network
                         if (length == 1)
                         {
                             _parameters[_iter] = Convert.ToInt16(syncBuffer[_bufferOffset]);
-                            _bufferOffset++;
+                            _bufferOffset++;    
                             break;
                         }
 
@@ -1656,7 +1685,7 @@ namespace Miner28.UdonUtils.Network
                             break;
                         }
                         break;
-                    case Types.UInt16:
+                    case Types.UInt16V:
                         if (length == 0)
                         {
                             _parameters[_iter] = Convert.ToUInt16(0);
@@ -1678,7 +1707,7 @@ namespace Miner28.UdonUtils.Network
                             break;
                         }
                         break;
-                    case Types.Int32:
+                    case Types.Int32V:
                         if (length == 0)
                         {
                             _parameters[_iter] = Convert.ToInt32(0);
@@ -1719,7 +1748,7 @@ namespace Miner28.UdonUtils.Network
                             break;
                         }
                         break;
-                    case Types.UInt32:
+                    case Types.UInt32V:
                         if (length == 0)
                         {
                             _parameters[_iter] = Convert.ToUInt32(0);
@@ -1760,7 +1789,7 @@ namespace Miner28.UdonUtils.Network
                             break;
                         }
                         break;
-                    case Types.Int64:
+                    case Types.Int64V:
                         if (length == 0)
                         {
                             _parameters[_iter] = Convert.ToInt64(0);
@@ -1851,7 +1880,7 @@ namespace Miner28.UdonUtils.Network
                             break;
                         }
                         break;
-                    case Types.UInt64:
+                    case Types.UInt64V:
                         if (length == 0)
                         {
                             _parameters[_iter] = Convert.ToUInt64(0);
@@ -2057,12 +2086,13 @@ namespace Miner28.UdonUtils.Network
                         _int32TMP = 0;
                         _int32TMP2 = 0;
                         _int32TMP3 = 0;
-                        _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out _int32TMP4); // String length
+                        _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out _uint32Value); // String length
                         
-                        chars = new string[_int32TMP4];
+                        chars = new string[_uint32Value];
                         
-                        _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out _int32TMP4); // String length in bytes
+                        _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out _uint32Value); // String length in bytes
 
+                        _int32TMP4 = Convert.ToInt32(_uint32Value);
                         _int32TMP4 += _bufferOffset;
 
 
@@ -2206,10 +2236,12 @@ namespace Miner28.UdonUtils.Network
                         _singleValue3 = syncBuffer.ReadFloat(_bufferOffset);
                         _bufferOffset += 4;
                         _singleValue4 = syncBuffer.ReadFloat(_bufferOffset);
+                        _bufferOffset += 4;
                         _parameters[_iter] =
                             new DataToken(new Quaternion(_singleValue, _singleValue2, _singleValue3, _singleValue4));
-                        break;
+                        break;  
                     case Types.DateTime:
+                        LogWarning("Decoding DateTime   ");
                         _parameters[_iter] = new DataToken(DateTime.FromBinary(
                             (long) syncBuffer[_bufferOffset] << Bit56 |
                             (long) syncBuffer[_bufferOffset + 1] << Bit48 |

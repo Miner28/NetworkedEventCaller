@@ -1,9 +1,6 @@
 ﻿using System;
-using Miner28.UdonUtils;
-using Miner28.UdonUtils.Network;
 using UdonSharp;
 using UnityEngine;
-using VRC.SDK3.Components;
 using VRC.SDK3.Data;
 using VRC.SDKBase;
 
@@ -22,7 +19,7 @@ namespace Miner28.UdonUtils.Network
         #region PoolManager
 
         [HideInInspector] public NetworkInterface[] sceneInterfaces;
-        [HideInInspector] public int[] sceneInterfacesIds;
+        [HideInInspector] public uint[] sceneInterfacesIds;
         [HideInInspector] public NetworkedEventCaller[] sceneCallers;
 
         [HideInInspector] public GameObject[] pool;
@@ -112,6 +109,7 @@ namespace Miner28.UdonUtils.Network
 
         public override void OnPlayerLeft(VRCPlayerApi player)
         {
+            if (!Utilities.IsValid(Networking.LocalPlayer)) return;
             int userId = player.playerId;
 
             var index = Array.IndexOf(poolOwners, userId);
