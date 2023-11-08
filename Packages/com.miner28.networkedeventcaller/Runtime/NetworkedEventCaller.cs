@@ -334,7 +334,6 @@ namespace Miner28.UdonUtils.Network
             
             for (_iter = 0; _iter < data.Length; _iter++)
             {
-                LogWarning($"Sending {data[_iter].TokenType} - Iter: {_iter}");
                 
                 var type = data[_iter].TokenType;
                 int typeId;
@@ -346,10 +345,8 @@ namespace Miner28.UdonUtils.Network
                 {
                     var reference = data[_iter].Reference;
                     typeId = Array.IndexOf(_typeMap, reference.GetType());
-                    LogWarning($"Reference: {reference} - Type: {reference.GetType()} - TypeId: {typeId}");
                 }
 
-                LogWarning($"Type: {type} - TypeId: {typeId}");
                 Types enumType;
                 if (typeId == -1)
                 {
@@ -361,7 +358,6 @@ namespace Miner28.UdonUtils.Network
                     enumType = (Types) typeId;
                 }
                 
-                LogWarning($"EnumType: {enumType} - TypeId: {typeId}");
 
 
                 if (typeId < (int) Types.Int16 || typeId > (int) Types.UInt64)
@@ -900,8 +896,6 @@ namespace Miner28.UdonUtils.Network
                         break;
                     case Types.DateTime:
                         _int64Value = ((DateTime) data[_iter].Reference).ToBinary();
-                        
-                        LogWarning("Encoding DateTime");
                         
                         syncBufferBuilder.Add((byte) ((_int64Value >> Bit56) & _0xFF));
                         syncBufferBuilder.Add((byte) ((_int64Value >> Bit48) & _0xFF));
@@ -1482,7 +1476,6 @@ namespace Miner28.UdonUtils.Network
             }
             for (int i = 0; i < syncBufferBuilder.Count; i++)
             {
-                Debug.Log($"SyncBufferBuilder {i} - {syncBufferBuilder[i].Byte}");
                 syncBuffer[i] = syncBufferBuilder[i].Byte;
             }
             
@@ -1644,7 +1637,6 @@ namespace Miner28.UdonUtils.Network
                 }
                 
                 
-                LogWarning($"About to read {type} - {length} - {_bufferOffset}");
                 
                 
                 switch (type)
@@ -2241,7 +2233,6 @@ namespace Miner28.UdonUtils.Network
                             new DataToken(new Quaternion(_singleValue, _singleValue2, _singleValue3, _singleValue4));
                         break;  
                     case Types.DateTime:
-                        LogWarning("Decoding DateTime   ");
                         _parameters[_iter] = new DataToken(DateTime.FromBinary(
                             (long) syncBuffer[_bufferOffset] << Bit56 |
                             (long) syncBuffer[_bufferOffset + 1] << Bit48 |
@@ -2728,7 +2719,6 @@ namespace Miner28.UdonUtils.Network
             else
                 enumType = (Types) typeId;
             
-            Log($"Setting {variable} to {token} ({enumType})");
 
             switch (enumType)
             {
