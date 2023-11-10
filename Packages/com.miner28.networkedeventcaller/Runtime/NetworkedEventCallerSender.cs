@@ -130,70 +130,70 @@ namespace Miner28.UdonUtils.Network
 
                         break;
                     case Types.Int32:
-                        _int32TMP2 = data[_iter].Int;
+                        _int32TMP = data[_iter].Int;
 
-                        if (_int32TMP2 == 0)
+                        if (_int32TMP == 0)
                         {
                             syncBufferBuilder.Add(Int32V);
                         }
-                        else if (_int32TMP2 > 0)
+                        else if (_int32TMP > 0)
                         {
-                            if (_int32TMP2 < _0xFF)
+                            if (_int32TMP < _0xFF)
                             {
                                 syncBufferBuilder.Add(Convert.ToByte(Int32V + 1));
-                                syncBufferBuilder.Add((byte) _int32TMP2);
+                                syncBufferBuilder.Add((byte) _int32TMP);
                             }
-                            else if (_int32TMP2 < _0xFFFF)
+                            else if (_int32TMP < _0xFFFF)
                             {
                                 syncBufferBuilder.Add(Convert.ToByte(Int32V + 2));
-                                syncBufferBuilder.Add((byte) ((_int32TMP2 >> Bit8) & _0xFF));
-                                syncBufferBuilder.Add((byte) (_int32TMP2 & _0xFF));
+                                syncBufferBuilder.Add((byte) ((_int32TMP >> Bit8) & _0xFF));
+                                syncBufferBuilder.Add((byte) (_int32TMP & _0xFF));
                             }
-                            else if (_int32TMP2 < 0xFFFFFF)
+                            else if (_int32TMP < 0xFFFFFF)
                             {
                                 syncBufferBuilder.Add(Convert.ToByte(Int32V + 3));
-                                syncBufferBuilder.Add((byte) ((_int32TMP2 >> Bit16) & _0xFF));
-                                syncBufferBuilder.Add((byte) ((_int32TMP2 >> Bit8) & _0xFF));
-                                syncBufferBuilder.Add((byte) (_int32TMP2 & _0xFF));
+                                syncBufferBuilder.Add((byte) ((_int32TMP >> Bit16) & _0xFF));
+                                syncBufferBuilder.Add((byte) ((_int32TMP >> Bit8) & _0xFF));
+                                syncBufferBuilder.Add((byte) (_int32TMP & _0xFF));
                             }
                             else
                             {
                                 syncBufferBuilder.Add(Convert.ToByte(Int32V + 4));
-                                syncBufferBuilder.Add((byte) ((_int32TMP2 >> Bit24) & _0xFF));
-                                syncBufferBuilder.Add((byte) ((_int32TMP2 >> Bit16) & _0xFF));
-                                syncBufferBuilder.Add((byte) ((_int32TMP2 >> Bit8) & _0xFF));
-                                syncBufferBuilder.Add((byte) (_int32TMP2 & _0xFF));
+                                syncBufferBuilder.Add((byte) ((_int32TMP >> Bit24) & _0xFF));
+                                syncBufferBuilder.Add((byte) ((_int32TMP >> Bit16) & _0xFF));
+                                syncBufferBuilder.Add((byte) ((_int32TMP >> Bit8) & _0xFF));
+                                syncBufferBuilder.Add((byte) (_int32TMP & _0xFF));
                             }
                         }
                         else
                         {
-                            _int32TMP = -_int32TMP2;
+                            _int32TMP = -_int32TMP;
 
-                            if (_int32TMP2 < _0xFF)
+                            if (_int32TMP < _0xFF)
                             {
                                 syncBufferBuilder.Add(Convert.ToByte(Int32VN + 1));
-                                syncBufferBuilder.Add((byte) _int32TMP2);
+                                syncBufferBuilder.Add((byte) _int32TMP);
                             }
-                            else if (_int32TMP2 < _0xFFFF)
+                            else if (_int32TMP < _0xFFFF)
                             {
                                 syncBufferBuilder.Add(Convert.ToByte(Int32VN + 2));
-                                syncBufferBuilder.Add((byte) ((_int32TMP2 >> Bit8) & _0xFF));
-                                syncBufferBuilder.Add((byte) (_int32TMP2 & _0xFF));
+                                syncBufferBuilder.Add((byte) ((_int32TMP >> Bit8) & _0xFF));
+                                syncBufferBuilder.Add((byte) (_int32TMP & _0xFF));
                             }
-                            else if (_int32TMP2 < 0xFFFFFF)
+                            else if (_int32TMP < 0xFFFFFF)
                             {
                                 syncBufferBuilder.Add(Convert.ToByte(Int32VN + 3));
-                                syncBufferBuilder.Add((byte) ((_int32TMP2 >> Bit16) & _0xFF));
-                                syncBufferBuilder.Add((byte) ((_int32TMP2 >> Bit8) & _0xFF));
-                                syncBufferBuilder.Add((byte) (_int32TMP2 & _0xFF));
+                                syncBufferBuilder.Add((byte) ((_int32TMP >> Bit16) & _0xFF));
+                                syncBufferBuilder.Add((byte) ((_int32TMP >> Bit8) & _0xFF));
+                                syncBufferBuilder.Add((byte) (_int32TMP & _0xFF));
                             }
                             else
                             {
                                 syncBufferBuilder.Add(Convert.ToByte(Int32VN + 4));
-                                syncBufferBuilder.Add((byte) ((_int32TMP2 >> Bit24) & _0xFF));
-                                syncBufferBuilder.Add((byte) ((_int32TMP2 >> Bit16) & _0xFF));
-                                syncBufferBuilder.Add((byte) ((_int32TMP2 >> Bit8) & _0xFF));
-                                syncBufferBuilder.Add((byte) (_int32TMP2 & _0xFF));
+                                syncBufferBuilder.Add((byte) ((_int32TMP >> Bit24) & _0xFF));
+                                syncBufferBuilder.Add((byte) ((_int32TMP >> Bit16) & _0xFF));
+                                syncBufferBuilder.Add((byte) ((_int32TMP >> Bit8) & _0xFF));
+                                syncBufferBuilder.Add((byte) (_int32TMP & _0xFF));
                             }
                         }
 
