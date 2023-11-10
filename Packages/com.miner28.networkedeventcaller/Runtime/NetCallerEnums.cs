@@ -57,10 +57,13 @@ public enum Types
     Null,
     
     //Variable Size
-    Int16V = 100,
-    UInt16V = 110,
-    Int32V = 120,
+    Int16V = 60,
+    Int16VN = 70,
+    Int32V = 80,
+    Int32VN = 90,
+    Int64V = 100,
+    Int64VN = 110,
+    UInt16V = 120, 
     UInt32V = 130,
-    Int64V = 140,
-    UInt64V = 150,
+    UInt64V = 140,
 }
