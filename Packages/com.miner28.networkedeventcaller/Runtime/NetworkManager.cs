@@ -50,10 +50,9 @@ namespace Miner28.UdonUtils.Network
 
             methodInfosKeys = methodInfos.GetKeys();
             methodInfosKeys.Sort();
-            
 
 
-            foreach (var @interface in sceneInterfaces) 
+            foreach (var @interface in sceneInterfaces)
             {
                 @interface.SetupInterface();
             }
@@ -62,8 +61,6 @@ namespace Miner28.UdonUtils.Network
             {
                 caller.SetupCaller();
             }
-            
-            
         }
 
 
@@ -90,7 +87,7 @@ namespace Miner28.UdonUtils.Network
                     Log("No free objects in pool - Unable to assign Caller");
                     return;
                 }
-                
+
                 var oId = Array.IndexOf(pool, obj);
                 poolOwners[oId] = player.playerId;
                 obj.SetActive(true);
@@ -142,9 +139,9 @@ namespace Miner28.UdonUtils.Network
                     if (myId == poolOwners[i])
                     {
                         _myCaller = sceneCallers[i];
-                        
+
                         sceneCallers[i].gameObject.SetActive(true);
-                        
+
                         Networking.SetOwner(Networking.LocalPlayer, _myCaller.gameObject);
                         Log($"I have got myself Caller - NonMaster {_myCaller == null}");
                         OnCallerAssigned();
@@ -194,13 +191,12 @@ namespace Miner28.UdonUtils.Network
         {
             if (debug) Debug.Log($"<color=#FFFF00>PoolManager</color> {log}");
         }
-        
+
         private void Log(string log)
         {
             if (debug) Debug.Log($"<color=#FFFF00>PoolManager</color> {log}");
         }
-        
-        
+
 
         private void OnCallerAssigned()
         {
@@ -213,8 +209,5 @@ namespace Miner28.UdonUtils.Network
         }
 
         #endregion
-
-
-
     }
 }

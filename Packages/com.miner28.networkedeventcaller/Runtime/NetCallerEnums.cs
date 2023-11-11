@@ -5,7 +5,7 @@
     Others,
     Master,
     NonMaster,
-}   
+}
 
 public enum Types
 {
@@ -57,7 +57,7 @@ public enum Types
     Vector4A,
     QuaternionA,
     Null,
-    
+
     //Variable Size
     Int16V = 60,
     Int16VN = 70,
@@ -65,7 +65,7 @@ public enum Types
     Int32VN = 90,
     Int64V = 100,
     Int64VN = 110,
-    UInt16V = 120, 
+    UInt16V = 120,
     UInt32V = 130,
     UInt64V = 140,
 }

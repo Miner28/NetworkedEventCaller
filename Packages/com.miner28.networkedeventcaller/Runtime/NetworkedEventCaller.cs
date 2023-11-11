@@ -139,6 +139,7 @@ namespace Miner28.UdonUtils.Network
             Int64V = (byte) Types.Int64V,
             Int64VN = (byte) Types.Int64VN,
             UInt64V = (byte) Types.UInt64V;
+
         #endregion
 
         #region StorageVariables
@@ -206,9 +207,9 @@ namespace Miner28.UdonUtils.Network
         private DataToken[] _parameters = new DataToken[0];
         private int _bufferOffset;
         private uint _localSentOut;
-        
+
         [UdonSynced] [NonSerialized] public byte[] syncBuffer = new byte[0];
-        
+
         private DataList syncBufferBuilder = new DataList();
 
         private DataList _dataQueue = new DataList();
@@ -241,7 +242,7 @@ namespace Miner28.UdonUtils.Network
                 LogWarning($"Failed Serialization - {result.byteCount}");
             }
         }
-        
+
         internal void _PrepareSend(uint intTarget, string method, uint scriptTarget, DataToken[] data)
         {
             SyncTarget target = SyncTarget.All;
@@ -252,7 +253,6 @@ namespace Miner28.UdonUtils.Network
             else
             {
                 target = (SyncTarget) (-1);
-
             }
 
             var sIndex = Array.IndexOf(sceneInterfacesIds, scriptTarget);
@@ -269,14 +269,14 @@ namespace Miner28.UdonUtils.Network
                     $"<color=#FF0000>Invalid method: {method}</color> - {method} can't send method if method is invalid, check if method is public and marked as [NetworkedMethod]");
                 return;
             }
-            
+
             uint methodIdUint = (uint) methodId;
 
             if (_debug)
             {
                 Log($"Preparing Send - {method} - {methodIdUint} - {scriptTarget} - {sIndex} - {target}");
             }
-            
+
             var byteList = SendData(methodIdUint, scriptTarget, intTarget, data);
             if (byteList == null)
             {
@@ -291,7 +291,8 @@ namespace Miner28.UdonUtils.Network
                 if (!_queueRunning)
                 {
                     _queueRunning = true;
-                    SendCustomEventDelayedSeconds(nameof(_SendQueue), 0.125f - (Time.realtimeSinceStartup - _lastSendTime));
+                    SendCustomEventDelayedSeconds(nameof(_SendQueue),
+                        0.125f - (Time.realtimeSinceStartup - _lastSendTime));
                 }
             }
             else
@@ -302,21 +303,21 @@ namespace Miner28.UdonUtils.Network
                 {
                     syncBuffer = new byte[byteList.Count];
                 }
-                
+
                 for (int i = 0; i < byteList.Count; i++)
                 {
                     syncBuffer[i] = byteList[i].Byte;
                 }
-                
+
                 byteList.Clear();
-                
+
                 RequestSerialization();
             }
-            
-            if (target == SyncTarget.All || 
-                target == SyncTarget.Local || 
-                (target == SyncTarget.Master && Networking.IsMaster) || 
-                (target == SyncTarget.NonMaster && !Networking.IsMaster) || 
+
+            if (target == SyncTarget.All ||
+                target == SyncTarget.Local ||
+                (target == SyncTarget.Master && Networking.IsMaster) ||
+                (target == SyncTarget.NonMaster && !Networking.IsMaster) ||
                 (target == (SyncTarget) (-1) && Networking.LocalPlayer.playerId == intTarget - 100))
             {
                 var methodKey = _methodInfosKeys[methodId];
@@ -338,11 +339,8 @@ namespace Miner28.UdonUtils.Network
 
                 _targetScript.SendCustomEvent(methodInfo["methodName"].String);
             }
-            
-            
         }
 
-        
 
         public void _SendQueue()
         {
@@ -356,19 +354,19 @@ namespace Miner28.UdonUtils.Network
 
 
             var byteList = _dataQueue[0].DataList;
-                
+
             _dataQueue.RemoveAt(0);
-            
+
             if (syncBuffer.Length != byteList.Count)
             {
                 syncBuffer = new byte[byteList.Count];
             }
-            
+
             for (int i = 0; i < byteList.Count; i++)
             {
                 syncBuffer[i] = byteList[i].Byte;
             }
-            
+
             byteList.Clear();
 
             _lastSendTime = Time.realtimeSinceStartup;
@@ -400,21 +398,21 @@ namespace Miner28.UdonUtils.Network
                     if (_debug) Log($"Ignoring deserialization, not master");
                     return;
                 }
-                
+
                 if (target == SyncTarget.NonMaster && Networking.IsMaster)
                 {
                     if (_debug) Log($"Ignoring deserialization, not non master");
                     return;
                 }
             }
-            
+
             offset += syncBuffer.ReadVariableInt(offset, out uint methodTarget);
             if (_debug)
             {
                 Log($"Deserialization - {methodTarget} - Size {syncBuffer.Length}");
             }
-            
-            
+
+
             offset += syncBuffer.ReadVariableInt(offset, out uint scriptTarget);
             syncBuffer.ReadVariableInt(offset, out uint sentOutMethods);
             if (_localSentOut >= sentOutMethods && _localSentOut != 0)
@@ -456,7 +454,7 @@ namespace Miner28.UdonUtils.Network
 
             _targetScript.SendCustomEvent(methodInfo["methodName"].String);
         }
-        
+
 
         private void SetUdonVariable(string variable, DataToken token)
         {
@@ -477,7 +475,7 @@ namespace Miner28.UdonUtils.Network
                 enumType = Types.Null;
             else
                 enumType = (Types) typeId;
-            
+
 
             switch (enumType)
             {

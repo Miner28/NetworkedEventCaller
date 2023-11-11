@@ -1313,12 +1313,11 @@ namespace Miner28.UdonUtils.Network
                 }
             }
 
-            
-
 
             if (_debug)
             {
-                Log($"[SyncBuffer] [Build] [End] [Size: {syncBufferBuilder.Count}] [Time: {DateTime.Now:HH:mm:ss.fff}]");
+                Log(
+                    $"[SyncBuffer] [Build] [End] [Size: {syncBufferBuilder.Count}] [Time: {DateTime.Now:HH:mm:ss.fff}]");
             }
 
 

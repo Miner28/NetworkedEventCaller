@@ -66,7 +66,7 @@ namespace Miner28.UdonUtils
                 byte value = buffer[i];
                 if ((value & _0x80) == 0)
                 {
-                    chars[charIndex++] = ((char)value).ToString();
+                    chars[charIndex++] = ((char) value).ToString();
                 }
                 else if ((value & _0xC0) == _0x80)
                 {
@@ -169,8 +169,8 @@ namespace Miner28.UdonUtils
             return value;
             */
             return
-                ((uint)buffer[0] << Bit24) | ((uint)buffer[1] << Bit16) |
-                ((uint)buffer[2] << Bit8) | buffer[3];
+                ((uint) buffer[0] << Bit24) | ((uint) buffer[1] << Bit16) |
+                ((uint) buffer[2] << Bit8) | buffer[3];
         }
 
 
@@ -193,10 +193,10 @@ namespace Miner28.UdonUtils
             return value;
             */
             return
-                ((long)buffer[0] << Bit56) | ((long)buffer[1] << Bit48) |
-                ((long)buffer[2] << Bit40) | ((long)buffer[3] << Bit32) |
-                ((long)buffer[4] << Bit24) | ((long)buffer[5] << Bit16) |
-                ((long)buffer[6] << Bit8) | buffer[7];
+                ((long) buffer[0] << Bit56) | ((long) buffer[1] << Bit48) |
+                ((long) buffer[2] << Bit40) | ((long) buffer[3] << Bit32) |
+                ((long) buffer[4] << Bit24) | ((long) buffer[5] << Bit16) |
+                ((long) buffer[6] << Bit8) | buffer[7];
         }
 
         /// <summary>
@@ -218,10 +218,10 @@ namespace Miner28.UdonUtils
             return value;
             */
             return
-                ((ulong)buffer[0] << Bit56) | ((ulong)buffer[1] << Bit48) |
-                ((ulong)buffer[2] << Bit40) | ((ulong)buffer[3] << Bit32) |
-                ((ulong)buffer[4] << Bit24) | ((ulong)buffer[5] << Bit16) |
-                ((ulong)buffer[6] << Bit8) | buffer[7];
+                ((ulong) buffer[0] << Bit56) | ((ulong) buffer[1] << Bit48) |
+                ((ulong) buffer[2] << Bit40) | ((ulong) buffer[3] << Bit32) |
+                ((ulong) buffer[4] << Bit24) | ((ulong) buffer[5] << Bit16) |
+                ((ulong) buffer[6] << Bit8) | buffer[7];
         }
 
         #endregion
@@ -238,7 +238,7 @@ namespace Miner28.UdonUtils
         {
             int value = buffer[0] << Bit8 | buffer[1];
             if (value > 0x8000) value -= 0xFFFF;
-            return (char)Convert.ToInt16(value);
+            return (char) Convert.ToInt16(value);
         }
 
         /// <summary>
@@ -259,14 +259,14 @@ namespace Miner28.UdonUtils
         public static float ToSingle(byte[] buffer)
         {
             //uint value = ReadUInt32(buffer);
-            uint value = ((uint)buffer[0] << Bit24) | ((uint)buffer[1] << Bit16) | ((uint)buffer[2] << Bit8) |
+            uint value = ((uint) buffer[0] << Bit24) | ((uint) buffer[1] << Bit16) | ((uint) buffer[2] << Bit8) |
                          buffer[3];
 
 
             if (value == 0 || value == FloatSignBit) return 0f;
 
-            int exp = (int)((value & FloatExpMask) >> 23);
-            int frac = (int)(value & FloatFracMask);
+            int exp = (int) ((value & FloatExpMask) >> 23);
+            int frac = (int) (value & FloatFracMask);
             bool negate = (value & FloatSignBit) == FloatSignBit;
             if (exp == 0xFF)
             {
@@ -310,10 +310,10 @@ namespace Miner28.UdonUtils
         public static DateTime ToDateTime(byte[] buffer)
         {
             //return DateTime.FromBinary(ReadInt64(buffer));
-            return DateTime.FromBinary(((long)buffer[0] << Bit56) | ((long)buffer[1] << Bit48) |
-                                       ((long)buffer[2] << Bit40) | ((long)buffer[3] << Bit32) |
-                                       ((long)buffer[4] << Bit24) | ((long)buffer[5] << Bit16) |
-                                       ((long)buffer[6] << Bit8) | buffer[7]);
+            return DateTime.FromBinary(((long) buffer[0] << Bit56) | ((long) buffer[1] << Bit48) |
+                                       ((long) buffer[2] << Bit40) | ((long) buffer[3] << Bit32) |
+                                       ((long) buffer[4] << Bit24) | ((long) buffer[5] << Bit16) |
+                                       ((long) buffer[6] << Bit8) | buffer[7]);
         }
 
         /// <summary>
@@ -324,9 +324,9 @@ namespace Miner28.UdonUtils
         public static TimeSpan ToTimeSpan(byte[] buffer)
         {
             //return new TimeSpan(ReadInt64(buffer));
-            return new TimeSpan(((long)buffer[0] << Bit56) | ((long)buffer[1] << Bit48) |
-                                ((long)buffer[2] << Bit40) | ((long)buffer[3] << Bit32) |
-                                ((long)buffer[4] << Bit24) | ((long)buffer[5] << Bit16) | ((long)buffer[6] << Bit8) |
+            return new TimeSpan(((long) buffer[0] << Bit56) | ((long) buffer[1] << Bit48) |
+                                ((long) buffer[2] << Bit40) | ((long) buffer[3] << Bit32) |
+                                ((long) buffer[4] << Bit24) | ((long) buffer[5] << Bit16) | ((long) buffer[6] << Bit8) |
                                 buffer[7]);
         }
 
@@ -361,15 +361,15 @@ namespace Miner28.UdonUtils
         /// <returns><see cref="double"/></returns>
         public static double ToDouble(byte[] buffer)
         {
-            ulong value = ((ulong)buffer[0] << Bit56) | ((ulong)buffer[1] << Bit48) |
-                          ((ulong)buffer[2] << Bit40) | ((ulong)buffer[3] << Bit32) |
-                          ((ulong)buffer[4] << Bit24) | ((ulong)buffer[5] << Bit16) |
-                          ((ulong)buffer[6] << Bit8) | buffer[7];
+            ulong value = ((ulong) buffer[0] << Bit56) | ((ulong) buffer[1] << Bit48) |
+                          ((ulong) buffer[2] << Bit40) | ((ulong) buffer[3] << Bit32) |
+                          ((ulong) buffer[4] << Bit24) | ((ulong) buffer[5] << Bit16) |
+                          ((ulong) buffer[6] << Bit8) | buffer[7];
 
             if (value == 0.0 || value == DoubleSignBit) return 0.0;
 
-            long exp = (long)((value & DoubleExpMask) >> 52);
-            long frac = (long)(value & DoubleFracMask);
+            long exp = (long) ((value & DoubleExpMask) >> 52);
+            long frac = (long) (value & DoubleFracMask);
             bool negate = (value & DoubleSignBit) == DoubleSignBit;
 
             if (exp == 0x7FF)
@@ -382,7 +382,7 @@ namespace Miner28.UdonUtils
             if (normal) exp -= 1023;
             else exp = -1022;
 
-            double result = (double)frac / 0x10000000000000UL;
+            double result = (double) frac / 0x10000000000000UL;
             if (normal) result += 1.0;
 
             result *= Math.Pow(2, exp);
@@ -424,25 +424,25 @@ namespace Miner28.UdonUtils
                 int value = char.ConvertToUtf32(str, i);
                 if (value < 0x80)
                 {
-                    buffer[byteIndex++] = (byte)value;
+                    buffer[byteIndex++] = (byte) value;
                 }
                 else if (value < 0x0800)
                 {
-                    buffer[byteIndex++] = (byte)(value >> 6 | 0xC0);
-                    buffer[byteIndex++] = (byte)(value & 0x3F | 0x80);
+                    buffer[byteIndex++] = (byte) (value >> 6 | 0xC0);
+                    buffer[byteIndex++] = (byte) (value & 0x3F | 0x80);
                 }
                 else if (value < 0x010000)
                 {
-                    buffer[byteIndex++] = (byte)(value >> 12 | 0xE0);
-                    buffer[byteIndex++] = (byte)((value >> 6) & 0x3F | 0x80);
-                    buffer[byteIndex++] = (byte)(value & 0x3F | 0x80);
+                    buffer[byteIndex++] = (byte) (value >> 12 | 0xE0);
+                    buffer[byteIndex++] = (byte) ((value >> 6) & 0x3F | 0x80);
+                    buffer[byteIndex++] = (byte) (value & 0x3F | 0x80);
                 }
                 else
                 {
-                    buffer[byteIndex++] = (byte)(value >> 18 | 0xF0);
-                    buffer[byteIndex++] = (byte)((value >> 12) & 0x3F | 0x80);
-                    buffer[byteIndex++] = (byte)((value >> 6) & 0x3F | 0x80);
-                    buffer[byteIndex++] = (byte)(value & 0x3F | 0x80);
+                    buffer[byteIndex++] = (byte) (value >> 18 | 0xF0);
+                    buffer[byteIndex++] = (byte) ((value >> 12) & 0x3F | 0x80);
+                    buffer[byteIndex++] = (byte) ((value >> 6) & 0x3F | 0x80);
+                    buffer[byteIndex++] = (byte) (value & 0x3F | 0x80);
                 }
 
                 if (char.IsSurrogate(str, i)) i++;
@@ -497,7 +497,7 @@ namespace Miner28.UdonUtils
         public static byte GetByte(sbyte value)
         {
             return
-                (byte)(value < 0 ? (value + 0xFFFF) : value);
+                (byte) (value < 0 ? (value + 0xFFFF) : value);
         }
 
         /// <summary>
@@ -508,7 +508,7 @@ namespace Miner28.UdonUtils
         public static byte[] GetBytes(short value)
         {
             int tmp = value < 0 ? (value + 0xFFFF) : value;
-            return new[] { (byte)(tmp >> Bit8), (byte)(tmp & 0xFF) };
+            return new[] {(byte) (tmp >> Bit8), (byte) (tmp & 0xFF)};
         }
 
         /// <summary>
@@ -518,7 +518,7 @@ namespace Miner28.UdonUtils
         /// <returns>Array of <see cref="byte"/></returns>
         public static byte[] GetBytes(ushort value)
         {
-            return new[] { (byte)(value >> Bit8), (byte)(value & 0xFF) };
+            return new[] {(byte) (value >> Bit8), (byte) (value & 0xFF)};
         }
 
         /// <summary>
@@ -530,8 +530,8 @@ namespace Miner28.UdonUtils
         {
             return new[]
             {
-                (byte)((value >> Bit24) & 0xFF), (byte)((value >> Bit16) & 0xFF),
-                (byte)((value >> Bit8) & 0xFF), (byte)(value & 0xFF)
+                (byte) ((value >> Bit24) & 0xFF), (byte) ((value >> Bit16) & 0xFF),
+                (byte) ((value >> Bit8) & 0xFF), (byte) (value & 0xFF)
             };
         }
 
@@ -544,8 +544,8 @@ namespace Miner28.UdonUtils
         {
             return new[]
             {
-                (byte)((value >> Bit24) & 255u), (byte)((value >> Bit16) & 255u),
-                (byte)((value >> Bit8) & 255u), (byte)(value & 255u)
+                (byte) ((value >> Bit24) & 255u), (byte) ((value >> Bit16) & 255u),
+                (byte) ((value >> Bit8) & 255u), (byte) (value & 255u)
             };
         }
 
@@ -558,10 +558,10 @@ namespace Miner28.UdonUtils
         {
             return new[]
             {
-                (byte)((value >> Bit56) & 0xFF), (byte)((value >> Bit48) & 0xFF),
-                (byte)((value >> Bit40) & 0xFF), (byte)((value >> Bit32) & 0xFF),
-                (byte)((value >> Bit24) & 0xFF), (byte)((value >> Bit16) & 0xFF),
-                (byte)((value >> Bit8) & 0xFF), (byte)(value & 0xFF),
+                (byte) ((value >> Bit56) & 0xFF), (byte) ((value >> Bit48) & 0xFF),
+                (byte) ((value >> Bit40) & 0xFF), (byte) ((value >> Bit32) & 0xFF),
+                (byte) ((value >> Bit24) & 0xFF), (byte) ((value >> Bit16) & 0xFF),
+                (byte) ((value >> Bit8) & 0xFF), (byte) (value & 0xFF),
             };
         }
 
@@ -574,10 +574,10 @@ namespace Miner28.UdonUtils
         {
             return new[]
             {
-                (byte)((value >> Bit56) & 255ul), (byte)((value >> Bit48) & 255ul),
-                (byte)((value >> Bit40) & 255ul), (byte)((value >> Bit32) & 255ul),
-                (byte)((value >> Bit24) & 255ul), (byte)((value >> Bit16) & 255ul),
-                (byte)((value >> Bit8) & 255ul), (byte)(value & 255ul),
+                (byte) ((value >> Bit56) & 255ul), (byte) ((value >> Bit48) & 255ul),
+                (byte) ((value >> Bit40) & 255ul), (byte) ((value >> Bit32) & 255ul),
+                (byte) ((value >> Bit24) & 255ul), (byte) ((value >> Bit16) & 255ul),
+                (byte) ((value >> Bit8) & 255ul), (byte) (value & 255ul),
             };
         }
 
@@ -593,9 +593,9 @@ namespace Miner28.UdonUtils
         /// <returns></returns>
         public static byte[] GetBytes(char value)
         {
-            var sValue = (short)value;
+            var sValue = (short) value;
             int tmp = sValue < 0 ? (sValue + 0xFFFF) : sValue;
-            return new[] { (byte)(tmp >> Bit8), (byte)(tmp & 0xFF) };
+            return new[] {(byte) (tmp >> Bit8), (byte) (tmp & 0xFF)};
         }
 
         /// <summary>
@@ -606,7 +606,7 @@ namespace Miner28.UdonUtils
         /// <returns></returns>
         public static byte GetByte(bool value)
         {
-            return (byte)(value ? 0 : 1);
+            return (byte) (value ? 0 : 1);
         }
 
         /// <summary>
@@ -668,8 +668,8 @@ namespace Miner28.UdonUtils
             //return WriteUInt32(tmp);
             return new[]
             {
-                (byte)((tmp >> Bit24) & 255u), (byte)((tmp >> Bit16) & 255u),
-                (byte)((tmp >> Bit8) & 255u), (byte)(tmp & 255u)
+                (byte) ((tmp >> Bit24) & 255u), (byte) ((tmp >> Bit16) & 255u),
+                (byte) ((tmp >> Bit8) & 255u), (byte) (tmp & 255u)
             };
         }
 
@@ -682,7 +682,7 @@ namespace Miner28.UdonUtils
         {
             //return WriteUInt16(Mathf.FloatToHalf(value));
             ushort tmp = Mathf.FloatToHalf(value);
-            return new[] { (byte)(tmp >> Bit8), (byte)(tmp & 0xFF) };
+            return new[] {(byte) (tmp >> Bit8), (byte) (tmp & 0xFF)};
         }
 
         /// <summary>
@@ -696,10 +696,10 @@ namespace Miner28.UdonUtils
             long tmp = value.ToBinary();
             return new[]
             {
-                (byte)((tmp >> Bit56) & 0xFF), (byte)((tmp >> Bit48) & 0xFF),
-                (byte)((tmp >> Bit40) & 0xFF), (byte)((tmp >> Bit32) & 0xFF),
-                (byte)((tmp >> Bit24) & 0xFF), (byte)((tmp >> Bit16) & 0xFF),
-                (byte)((tmp >> Bit8) & 0xFF), (byte)(tmp & 0xFF),
+                (byte) ((tmp >> Bit56) & 0xFF), (byte) ((tmp >> Bit48) & 0xFF),
+                (byte) ((tmp >> Bit40) & 0xFF), (byte) ((tmp >> Bit32) & 0xFF),
+                (byte) ((tmp >> Bit24) & 0xFF), (byte) ((tmp >> Bit16) & 0xFF),
+                (byte) ((tmp >> Bit8) & 0xFF), (byte) (tmp & 0xFF),
             };
         }
 
@@ -714,10 +714,10 @@ namespace Miner28.UdonUtils
             long tmp = value.Ticks;
             return new[]
             {
-                (byte)((tmp >> Bit56) & 0xFF), (byte)((tmp >> Bit48) & 0xFF),
-                (byte)((tmp >> Bit40) & 0xFF), (byte)((tmp >> Bit32) & 0xFF),
-                (byte)((tmp >> Bit24) & 0xFF), (byte)((tmp >> Bit16) & 0xFF),
-                (byte)((tmp >> Bit8) & 0xFF), (byte)(tmp & 0xFF),
+                (byte) ((tmp >> Bit56) & 0xFF), (byte) ((tmp >> Bit48) & 0xFF),
+                (byte) ((tmp >> Bit40) & 0xFF), (byte) ((tmp >> Bit32) & 0xFF),
+                (byte) ((tmp >> Bit24) & 0xFF), (byte) ((tmp >> Bit16) & 0xFF),
+                (byte) ((tmp >> Bit8) & 0xFF), (byte) (tmp & 0xFF),
             };
         }
 
@@ -731,17 +731,17 @@ namespace Miner28.UdonUtils
             var tmp = Decimal.GetBits(value);
             return new[]
             {
-                (byte)((tmp[0] >> Bit24) & 0xFF), (byte)((tmp[0] >> Bit16) & 0xFF),
-                (byte)((tmp[0] >> Bit8) & 0xFF), (byte)(tmp[0] & 0xFF),
+                (byte) ((tmp[0] >> Bit24) & 0xFF), (byte) ((tmp[0] >> Bit16) & 0xFF),
+                (byte) ((tmp[0] >> Bit8) & 0xFF), (byte) (tmp[0] & 0xFF),
 
-                (byte)((tmp[1] >> Bit24) & 0xFF), (byte)((tmp[1] >> Bit16) & 0xFF),
-                (byte)((tmp[1] >> Bit8) & 0xFF), (byte)(tmp[1] & 0xFF),
+                (byte) ((tmp[1] >> Bit24) & 0xFF), (byte) ((tmp[1] >> Bit16) & 0xFF),
+                (byte) ((tmp[1] >> Bit8) & 0xFF), (byte) (tmp[1] & 0xFF),
 
-                (byte)((tmp[2] >> Bit24) & 0xFF), (byte)((tmp[2] >> Bit16) & 0xFF),
-                (byte)((tmp[2] >> Bit8) & 0xFF), (byte)(tmp[2] & 0xFF),
+                (byte) ((tmp[2] >> Bit24) & 0xFF), (byte) ((tmp[2] >> Bit16) & 0xFF),
+                (byte) ((tmp[2] >> Bit8) & 0xFF), (byte) (tmp[2] & 0xFF),
 
-                (byte)((tmp[3] >> Bit24) & 0xFF), (byte)((tmp[3] >> Bit16) & 0xFF),
-                (byte)((tmp[3] >> Bit8) & 0xFF), (byte)(tmp[3] & 0xFF)
+                (byte) ((tmp[3] >> Bit24) & 0xFF), (byte) ((tmp[3] >> Bit16) & 0xFF),
+                (byte) ((tmp[3] >> Bit8) & 0xFF), (byte) (tmp[3] & 0xFF)
             };
         }
 
@@ -803,10 +803,10 @@ namespace Miner28.UdonUtils
 
             return new[]
             {
-                (byte)((tmp >> Bit56) & 255ul), (byte)((tmp >> Bit48) & 255ul),
-                (byte)((tmp >> Bit40) & 255ul), (byte)((tmp >> Bit32) & 255ul),
-                (byte)((tmp >> Bit24) & 255ul), (byte)((tmp >> Bit16) & 255ul),
-                (byte)((tmp >> Bit8) & 255ul), (byte)(tmp & 255ul),
+                (byte) ((tmp >> Bit56) & 255ul), (byte) ((tmp >> Bit48) & 255ul),
+                (byte) ((tmp >> Bit40) & 255ul), (byte) ((tmp >> Bit32) & 255ul),
+                (byte) ((tmp >> Bit24) & 255ul), (byte) ((tmp >> Bit16) & 255ul),
+                (byte) ((tmp >> Bit8) & 255ul), (byte) (tmp & 255ul),
             };
         }
 
@@ -824,126 +824,126 @@ namespace Miner28.UdonUtils
 
         #endregion
     }
-    
+
     public static class Extensions
     {
         public static T[] Add<T>(this T[] array, T item)
-            {
-                T[] newArray = new T[array.Length + 1];
-                Array.Copy(array, newArray, array.Length);
-                newArray[array.Length] = item;
-                return newArray;
-            }
-        
-            public static T[] Remove<T>(this T[] array, int index)
-            {
-                T[] newArray = new T[array.Length - 1];
-                Array.Copy(array, newArray, index);
-                Array.Copy(array, index + 1, newArray, index, newArray.Length - index);
-                return newArray;
-            }
-            
-            public static T[] Remove<T>(this T[] array, T item)
-            {
-                int index = Array.IndexOf(array, item);
-                if (index == -1)
-                {
-                    return array;
-                }
-                T[] newArray = new T[array.Length - 1];
-                Array.Copy(array, newArray, index);
-                Array.Copy(array, index + 1, newArray, index, newArray.Length - index);
-                return newArray;
-            }
-        
-            private static byte ToByte(float f)
-            {
-                f = Mathf.Clamp01(f);
-                return (byte) (f * 255);
-            }
-            
-            public static bool Contains<T>(this T[] array, T item) => Array.IndexOf(array, item) != -1;
-            public static string ToHex(this Color c) => $"{ToByte(c.r):X2}{ToByte(c.g):X2}{ToByte(c.b):X2}";
+        {
+            T[] newArray = new T[array.Length + 1];
+            Array.Copy(array, newArray, array.Length);
+            newArray[array.Length] = item;
+            return newArray;
+        }
 
-            /// <summary>
-            /// Sorts an array in Descending order
-            /// </summary>
-            /// <param name="array"></param>
-            /// <returns></returns>
-            public static byte[] SelectionSortDesc(this byte[] array)
+        public static T[] Remove<T>(this T[] array, int index)
+        {
+            T[] newArray = new T[array.Length - 1];
+            Array.Copy(array, newArray, index);
+            Array.Copy(array, index + 1, newArray, index, newArray.Length - index);
+            return newArray;
+        }
+
+        public static T[] Remove<T>(this T[] array, T item)
+        {
+            int index = Array.IndexOf(array, item);
+            if (index == -1)
             {
-                for (int i = 0; i < array.Length - 1; i++)
-                {
-                    int maxIndex = i;
-                    for (int j = i + 1; j < array.Length; j++)
-                    {
-                        if (array[j] > array[maxIndex])
-                        {
-                            maxIndex = j;
-                        }
-                    }
-                    if (maxIndex == i) continue;
-                    {
-                        int j = maxIndex;
-                        while (j > i)
-                        {
-                            var temp = array[j];
-                            array[j] = array[j - 1];
-                            array[j - 1] = temp;
-                            j--;
-                        }
-                    }
-                }
-        
                 return array;
             }
-        
-            /// <summary>
-            /// Sorts an array in Ascending order
-            /// </summary>
-            /// <param name="array"></param>
-            /// <returns></returns>
-            public static byte[] SelectionSortAsc(this byte[] array)
-            {
-                for (int i = 0; i < array.Length - 1; i++)
-                {
-                    int minIndex = i;
-                    for (int j = i + 1; j < array.Length; j++)
-                    {
-                        if (array[j] < array[minIndex])
-                        {
-                            minIndex = j;
-                        }
-                    }
-                    if (minIndex == i) continue;
-                    {
-                        int j = minIndex;
-                        while (j > i)
-                        {
-                            var temp = array[j];
-                            array[j] = array[j - 1];
-                            array[j - 1] = temp;
-                            j--;
-                        }
-                    }
-                }
-        
-                return array;
-            }
-            
-            
-            public static DataList ToDataList(this string[] array)
-            {
-                DataList list = new DataList();
-                foreach (var b in array)
-                {
-                    list.Add(new DataToken(b));
-                }
-                return list;
-            }
-            
-            
-        
 
+            T[] newArray = new T[array.Length - 1];
+            Array.Copy(array, newArray, index);
+            Array.Copy(array, index + 1, newArray, index, newArray.Length - index);
+            return newArray;
+        }
+
+        private static byte ToByte(float f)
+        {
+            f = Mathf.Clamp01(f);
+            return (byte) (f * 255);
+        }
+
+        public static bool Contains<T>(this T[] array, T item) => Array.IndexOf(array, item) != -1;
+        public static string ToHex(this Color c) => $"{ToByte(c.r):X2}{ToByte(c.g):X2}{ToByte(c.b):X2}";
+
+        /// <summary>
+        /// Sorts an array in Descending order
+        /// </summary>
+        /// <param name="array"></param>
+        /// <returns></returns>
+        public static byte[] SelectionSortDesc(this byte[] array)
+        {
+            for (int i = 0; i < array.Length - 1; i++)
+            {
+                int maxIndex = i;
+                for (int j = i + 1; j < array.Length; j++)
+                {
+                    if (array[j] > array[maxIndex])
+                    {
+                        maxIndex = j;
+                    }
+                }
+
+                if (maxIndex == i) continue;
+                {
+                    int j = maxIndex;
+                    while (j > i)
+                    {
+                        var temp = array[j];
+                        array[j] = array[j - 1];
+                        array[j - 1] = temp;
+                        j--;
+                    }
+                }
+            }
+
+            return array;
+        }
+
+        /// <summary>
+        /// Sorts an array in Ascending order
+        /// </summary>
+        /// <param name="array"></param>
+        /// <returns></returns>
+        public static byte[] SelectionSortAsc(this byte[] array)
+        {
+            for (int i = 0; i < array.Length - 1; i++)
+            {
+                int minIndex = i;
+                for (int j = i + 1; j < array.Length; j++)
+                {
+                    if (array[j] < array[minIndex])
+                    {
+                        minIndex = j;
+                    }
+                }
+
+                if (minIndex == i) continue;
+                {
+                    int j = minIndex;
+                    while (j > i)
+                    {
+                        var temp = array[j];
+                        array[j] = array[j - 1];
+                        array[j - 1] = temp;
+                        j--;
+                    }
+                }
+            }
+
+            return array;
+        }
+
+
+        public static DataList ToDataList(this string[] array)
+        {
+            DataList list = new DataList();
+            foreach (var b in array)
+            {
+                list.Add(new DataToken(b));
+            }
+
+            return list;
+        }
     }
 }
