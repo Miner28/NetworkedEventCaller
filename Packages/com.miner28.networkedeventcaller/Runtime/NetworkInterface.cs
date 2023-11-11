@@ -46,6 +46,12 @@ namespace Miner28.UdonUtils.Network
                 _callerAssigned = true;
             }
 
+            if (!Utilities.IsValid(target))
+            {
+                Debug.LogError($"Invalid target unable to send method - {methodName}");
+                return;
+            }
+
             _caller._PrepareSend(Convert.ToUInt32(target.playerId + 100), $"{_udonClassName}.{methodName}", networkID,
                 paramTokens);
         }

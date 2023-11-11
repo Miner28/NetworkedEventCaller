@@ -22,43 +22,6 @@ namespace Miner28.UdonUtils.Network
             NetworkManager networkManager = (NetworkManager) target;
 
             networkManager.debug = EditorGUILayout.Toggle("Debug mode", networkManager.debug);
-            networkManager.useNewSerialization = EditorGUILayout.Toggle("Use new serialization", networkManager.useNewSerialization);
-            
-            GUILayout.Label($"After changing the above settings you must Update Defines below");
-            if (GUILayout.Button("Update Defines"))
-            {
-                //We edit the NetworkedEventCaller.cs file to add/remove the define
-                NetworkedEventCaller caller = FindObjectOfType<NetworkedEventCaller>();
-                if (caller == null)
-                {
-                    Debug.LogError("Could not find NetworkedEventCaller in scene please setup NetworkManager first");
-                    return;
-                }
-                var path = AssetDatabase.GetAssetPath(MonoScript.FromMonoBehaviour(caller));
-                
-                
-                // Read the text from directly from the file
-                var text = System.IO.File.ReadAllText(path);
-                
-                //Delete old define
-                text = text.Replace("#define NETCALLER_USE_VARIABLE_SERIALIZATION\n", "");
-                text = text.Replace("#define NETCALLER_DEBUG\n", "");
-                
-                //Prepend new define
-                if (networkManager.debug)
-                {
-                    text = "#define NETCALLER_DEBUG\n" + text;
-                }
-                if (networkManager.useNewSerialization)
-                {
-                    text = "#define NETCALLER_USE_VARIABLE_SERIALIZATION\n" + text;
-                }
-                
-                //Write the new text back to the file
-                System.IO.File.WriteAllText(path, text);    
-                
-                AssetDatabase.ImportAsset(path);
-            }
             
             EditorGUILayout.Space();
             

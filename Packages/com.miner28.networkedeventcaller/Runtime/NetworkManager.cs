@@ -24,7 +24,6 @@ namespace Miner28.UdonUtils.Network
 
         [HideInInspector] public GameObject[] pool;
         [HideInInspector] public bool debug;
-        [HideInInspector] public bool useNewSerialization;
 
         [UdonSynced] private int[] poolOwners = new int[100];
         [UdonSynced] private int[] toClean = new int[0];

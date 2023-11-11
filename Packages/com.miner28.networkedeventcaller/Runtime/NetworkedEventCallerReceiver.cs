@@ -8,9 +8,9 @@ namespace Miner28.UdonUtils.Network
 {
     public partial class NetworkedEventCaller : UdonSharpBehaviour
     {
-        private void ReceiveData()
+        private int ReceiveData(int startIndex)
         {
-            _bufferOffset = 0;
+            _bufferOffset = startIndex;
 
             _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out uint length);
             if (_parameters.Length != length)
@@ -609,21 +609,10 @@ namespace Miner28.UdonUtils.Network
                         _parameters[_iter] = new DataToken(new Vector2(_singleValue, _singleValue2));
                         break;
                     case Types.Vector2Int:
-#if NETCALLER_USE_VARIABLE_SERIALIZATION
                         _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out _int32TMP);
                         _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out _int32TMP2);
                         _parameters[_iter] = new DataToken(new Vector2Int(_int32TMP, _int32TMP2));
-#else
-                        _parameters[_iter] = new DataToken(new Vector2Int(
-                            syncBuffer[_bufferOffset] << Bit24 |
-                            syncBuffer[_bufferOffset + 1] << Bit16 |
-                            syncBuffer[_bufferOffset + 2] << Bit8 |
-                            syncBuffer[_bufferOffset + 3],
-                            syncBuffer[_bufferOffset + 4] << Bit24 |
-                            syncBuffer[_bufferOffset + 5] << Bit16 |
-                            syncBuffer[_bufferOffset + 6] << Bit8 |
-                            syncBuffer[_bufferOffset + 7]));
-#endif
+
                         break;
                     case Types.Vector3:
                         _singleValue = syncBuffer.ReadFloat(_bufferOffset);
@@ -635,29 +624,11 @@ namespace Miner28.UdonUtils.Network
                         _parameters[_iter] = new DataToken(new Vector3(_singleValue, _singleValue2, _singleValue3));
                         break;
                     case Types.Vector3Int:
-#if NETCALLER_USE_VARIABLE_SERIALIZATION
                         _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out _int32TMP);
                         _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out _int32TMP2);
                         _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out _int32TMP3);
                         _parameters[_iter] = new DataToken(new Vector3Int(_int32TMP, _int32TMP2, _int32TMP3));
-#else
-                        _parameters[_iter] = new DataToken(new Vector3Int(
-                            syncBuffer[_bufferOffset] << Bit24 |
-                            syncBuffer[_bufferOffset + 1] << Bit16 |
-                            syncBuffer[_bufferOffset + 2] << Bit8 |
-                            syncBuffer[_bufferOffset + 3],
-                            syncBuffer[_bufferOffset + 4] << Bit24 |
-                            syncBuffer[_bufferOffset + 5] << Bit16 |
-                            syncBuffer[_bufferOffset + 6] << Bit8 |
-                            syncBuffer[_bufferOffset + 7],
-                            syncBuffer[_bufferOffset + 8] << Bit24 |
-                            syncBuffer[_bufferOffset + 9] << Bit16 |
-                            syncBuffer[_bufferOffset + 10] << Bit8 |
-                            syncBuffer[_bufferOffset + 11])
-                        );
 
-                        _bufferOffset += 12;
-#endif
                         break;
                     case Types.Vector4:
                         _singleValue = syncBuffer.ReadFloat(_bufferOffset);
@@ -742,14 +713,9 @@ namespace Miner28.UdonUtils.Network
 
                         for (var i = 0; i < length; i++)
                         {
-#if NETCALLER_USE_VARIABLE_SERIALIZATION
                             _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out _int16Value);
                             _int16A[i] = _int16Value;
-#else
-                            _int16A[i] =
-                                Convert.ToInt16((syncBuffer[_bufferOffset] << Bit8) | syncBuffer[_bufferOffset + 1]);
-                            _bufferOffset += 2;
-#endif
+
                         }
 
                         _parameters[_iter] = new DataToken(_int16A);
@@ -761,13 +727,9 @@ namespace Miner28.UdonUtils.Network
 
                         for (var i = 0; i < length; i++)
                         {
-#if NETCALLER_USE_VARIABLE_SERIALIZATION
                             _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out _uint16Value);
                             _uint16A[i] = _uint16Value;
-#else
-                            _uint16A[i] =
-                                Convert.ToUInt16((syncBuffer[_bufferOffset] << Bit8) | syncBuffer[_bufferOffset + 1]);
-#endif
+
                         }
 
                         _parameters[_iter] = new DataToken(_uint16A);
@@ -779,16 +741,9 @@ namespace Miner28.UdonUtils.Network
 
                         for (var i = 0; i < length; i++)
                         {
-#if NETCALLER_USE_VARIABLE_SERIALIZATION
                             _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out _int32TMP);
                             _int32A[i] = _int32TMP;
-#else
 
-                            _int32A[i] = (syncBuffer[_bufferOffset] << Bit24) |
-                                         (syncBuffer[_bufferOffset + 1] << Bit16) |
-                                         (syncBuffer[_bufferOffset + 2] << Bit8) | syncBuffer[_bufferOffset + 3];
-                            _bufferOffset += 4;
-#endif
                         }
 
                         _parameters[_iter] = new DataToken(_int32A);
@@ -801,16 +756,9 @@ namespace Miner28.UdonUtils.Network
 
                         for (var i = 0; i < length; i++)
                         {
-#if NETCALLER_USE_VARIABLE_SERIALIZATION
                             _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out _uint32Value);
                             _uint32A[i] = Convert.ToUInt32(_int32TMP);
-#else
-                            _uint32A[i] = (uint) (syncBuffer[_bufferOffset] << Bit24) |
-                                          (uint) (syncBuffer[_bufferOffset + 1] << Bit16) |
-                                          (uint) (syncBuffer[_bufferOffset + 2] << Bit8) |
-                                          syncBuffer[_bufferOffset + 3];
-                            _bufferOffset += 4;
-#endif
+
                         }
 
                         _parameters[_iter] = new DataToken(_uint32A);
@@ -822,19 +770,9 @@ namespace Miner28.UdonUtils.Network
 
                         for (var i = 0; i < length; i++)
                         {
-#if NETCALLER_USE_VARIABLE_SERIALIZATION
                             _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out _int64Value);
                             _int64A[i] = _int64Value;
-#else
-                            _int64A[i] = ((long) syncBuffer[_bufferOffset] << Bit56) |
-                                         ((long) syncBuffer[_bufferOffset + 1] << Bit48) |
-                                         ((long) syncBuffer[_bufferOffset + 2] << Bit40) |
-                                         ((long) syncBuffer[_bufferOffset + 3] << Bit32) |
-                                         ((long) syncBuffer[_bufferOffset + 4] << Bit24) |
-                                         ((long) syncBuffer[_bufferOffset + 5] << Bit16) |
-                                         ((long) syncBuffer[_bufferOffset + 6] << Bit8) | syncBuffer[_bufferOffset + 7];
-                            _bufferOffset += 8;
-#endif
+
                         }
 
                         _parameters[_iter] = new DataToken(_int64A);
@@ -846,20 +784,9 @@ namespace Miner28.UdonUtils.Network
 
                         for (var i = 0; i < length; i++)
                         {
-#if NETCALLER_USE_VARIABLE_SERIALIZATION
                             _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out _uint64Value);
                             _uint64A[i] = _uint64Value;
-#else
-                            _uint64A[i] = ((ulong) syncBuffer[_bufferOffset] << Bit56) |
-                                          ((ulong) syncBuffer[_bufferOffset + 1] << Bit48) |
-                                          ((ulong) syncBuffer[_bufferOffset + 2] << Bit40) |
-                                          ((ulong) syncBuffer[_bufferOffset + 3] << Bit32) |
-                                          ((ulong) syncBuffer[_bufferOffset + 4] << Bit24) |
-                                          ((ulong) syncBuffer[_bufferOffset + 5] << Bit16) |
-                                          ((ulong) syncBuffer[_bufferOffset + 6] << Bit8) |
-                                          syncBuffer[_bufferOffset + 7];
-                            _bufferOffset += 8;
-#endif
+
                         }
 
                         _parameters[_iter] = new DataToken(_uint64A);
@@ -1048,18 +975,10 @@ namespace Miner28.UdonUtils.Network
 
                         for (var i = 0; i < length; i++)
                         {
-#if NETCALLER_USE_VARIABLE_SERIALIZATION
                             _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out _int32TMP);
                             _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out _int32TMP2);
                             _vector2IntA[i] = new Vector2Int(_int32TMP, _int32TMP2);
-#else
-                            _vector2IntA[i] = new Vector2Int(
-                                syncBuffer[_bufferOffset] << Bit24 | syncBuffer[_bufferOffset + 1] << Bit16 |
-                                syncBuffer[_bufferOffset + 2] << Bit8 | syncBuffer[_bufferOffset + 3],
-                                syncBuffer[_bufferOffset + 4] << Bit24 | syncBuffer[_bufferOffset + 5] << Bit16 |
-                                syncBuffer[_bufferOffset + 6] << Bit8 | syncBuffer[_bufferOffset + 7]);
-                            _bufferOffset += 8;
-#endif
+
                         }
 
                         _parameters[_iter] = new DataToken(_vector2IntA);
@@ -1089,21 +1008,11 @@ namespace Miner28.UdonUtils.Network
 
                         for (var i = 0; i < length; i++)
                         {
-#if NETCALLER_USE_VARIABLE_SERIALIZATION
                             _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out _int32TMP);
                             _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out _int32TMP2);
                             _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out _int32TMP3);
                             _vector3IntA[i] = new Vector3Int(_int32TMP, _int32TMP2, _int32TMP3);
-#else
-                            _vector3IntA[i] = new Vector3Int(
-                                syncBuffer[_bufferOffset] << Bit24 | syncBuffer[_bufferOffset + 1] << Bit16 |
-                                syncBuffer[_bufferOffset + 2] << Bit8 | syncBuffer[_bufferOffset + 3],
-                                syncBuffer[_bufferOffset + 4] << Bit24 | syncBuffer[_bufferOffset + 5] << Bit16 |
-                                syncBuffer[_bufferOffset + 6] << Bit8 | syncBuffer[_bufferOffset + 7],
-                                syncBuffer[_bufferOffset + 8] << Bit24 | syncBuffer[_bufferOffset + 9] << Bit16 |
-                                syncBuffer[_bufferOffset + 10] << Bit8 | syncBuffer[_bufferOffset + 11]);
-                            _bufferOffset += 12;
-#endif
+
                         }
 
                         _parameters[_iter] = new DataToken(_vector3IntA);
@@ -1154,6 +1063,8 @@ namespace Miner28.UdonUtils.Network
                         break;
                 }
             }
+
+            return _bufferOffset;
         }
     }
 }

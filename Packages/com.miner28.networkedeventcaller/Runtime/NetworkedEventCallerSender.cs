@@ -797,13 +797,9 @@ namespace Miner28.UdonUtils.Network
                         for (_int32TMP2 = 0; _int32TMP2 < _int32TMP; _int32TMP2++)
                         {
                             _int32TMP = _int16A[_int32TMP2];
-
-#if NETCALLER_USE_VARIABLE_SERIALIZATION
+                            
                             syncBufferBuilder.AddVariableInt(Convert.ToUInt32(_int32TMP));
-#else
-                            syncBufferBuilder.Add((byte) ((_int32TMP >> Bit8) & 255u));
-                            syncBufferBuilder.Add((byte) (_int32TMP & 255u));
-#endif
+
                         }
 
                         break;
@@ -817,12 +813,8 @@ namespace Miner28.UdonUtils.Network
                         for (_int32TMP2 = 0; _int32TMP2 < _int32TMP; _int32TMP2++)
                         {
                             _uint16Value = _uint16A[_int32TMP2];
-#if NETCALLER_USE_VARIABLE_SERIALIZATION
                             syncBufferBuilder.AddVariableInt(_uint16Value);
-#else
-                            syncBufferBuilder.Add((byte) ((_uint16Value >> Bit8) & 255u));
-                            syncBufferBuilder.Add((byte) (_uint16Value & 255u));
-#endif
+
                         }
 
                         break;
@@ -836,14 +828,8 @@ namespace Miner28.UdonUtils.Network
                         for (_int32TMP2 = 0; _int32TMP2 < _int32TMP; _int32TMP2++)
                         {
                             _int32TMP = _int32A[_int32TMP2];
-#if NETCALLER_USE_VARIABLE_SERIALIZATION
                             syncBufferBuilder.AddVariableInt(_int32TMP);
-#else
-                            syncBufferBuilder.Add((byte) ((_int32TMP >> Bit24) & 255u));
-                            syncBufferBuilder.Add((byte) ((_int32TMP >> Bit16) & 255u));
-                            syncBufferBuilder.Add((byte) ((_int32TMP >> Bit8) & 255u));
-                            syncBufferBuilder.Add((byte) (_int32TMP & 255u));
-#endif
+
                         }
 
                         break;
@@ -857,14 +843,8 @@ namespace Miner28.UdonUtils.Network
                         for (_int32TMP2 = 0; _int32TMP2 < _int32TMP; _int32TMP2++)
                         {
                             _uint32Value = _uint32A[_int32TMP2];
-#if NETCALLER_USE_VARIABLE_SERIALIZATION
                             syncBufferBuilder.AddVariableInt(_uint32Value);
-#else
-                            syncBufferBuilder.Add((byte) ((_uint32Value >> Bit24) & 255u));
-                            syncBufferBuilder.Add((byte) ((_uint32Value >> Bit16) & 255u));
-                            syncBufferBuilder.Add((byte) ((_uint32Value >> Bit8) & 255u));
-                            syncBufferBuilder.Add((byte) (_uint32Value & 255u));
-#endif
+
                         }
 
                         break;
@@ -878,18 +858,8 @@ namespace Miner28.UdonUtils.Network
                         for (_int32TMP2 = 0; _int32TMP2 < _int32TMP; _int32TMP2++)
                         {
                             _int64Value = _int64A[_int32TMP2];
-#if NETCALLER_USE_VARIABLE_SERIALIZATION
                             syncBufferBuilder.AddVariableInt(_int64Value);
-#else
-                            syncBufferBuilder.Add((byte) ((_int64Value >> Bit56) & _0xFF));
-                            syncBufferBuilder.Add((byte) ((_int64Value >> Bit48) & _0xFF));
-                            syncBufferBuilder.Add((byte) ((_int64Value >> Bit40) & _0xFF));
-                            syncBufferBuilder.Add((byte) ((_int64Value >> Bit32) & _0xFF));
-                            syncBufferBuilder.Add((byte) ((_int64Value >> Bit24) & _0xFF));
-                            syncBufferBuilder.Add((byte) ((_int64Value >> Bit16) & _0xFF));
-                            syncBufferBuilder.Add((byte) ((_int64Value >> Bit8) & _0xFF));
-                            syncBufferBuilder.Add((byte) (_int64Value & _0xFF));
-#endif
+
                         }
 
                         break;
@@ -903,18 +873,8 @@ namespace Miner28.UdonUtils.Network
                         for (_int32TMP2 = 0; _int32TMP2 < _int32TMP; _int32TMP2++)
                         {
                             _uint64Value = _uint64A[_int32TMP2];
-#if NETCALLER_USE_VARIABLE_SERIALIZATION
                             syncBufferBuilder.AddVariableInt(_uint64Value);
-#else
-                            syncBufferBuilder.Add((byte) ((_uint64Value >> Bit56) & 255ul));
-                            syncBufferBuilder.Add((byte) ((_uint64Value >> Bit48) & 255ul));
-                            syncBufferBuilder.Add((byte) ((_uint64Value >> Bit40) & 255ul));
-                            syncBufferBuilder.Add((byte) ((_uint64Value >> Bit32) & 255ul));
-                            syncBufferBuilder.Add((byte) ((_uint64Value >> Bit24) & 255ul));
-                            syncBufferBuilder.Add((byte) ((_uint64Value >> Bit16) & 255ul));
-                            syncBufferBuilder.Add((byte) ((_uint64Value >> Bit8) & 255ul));
-                            syncBufferBuilder.Add((byte) (_uint64Value & 255ul));
-#endif
+
                         }
 
                         break;
@@ -1207,21 +1167,9 @@ namespace Miner28.UdonUtils.Network
                         for (_int32TMP2 = 0; _int32TMP2 < _int32TMP; _int32TMP2++)
                         {
                             _vector2Int = _vector2IntA[_int32TMP2];
-#if NETCALLER_USE_VARIABLE_SERIALIZATION
                             syncBufferBuilder.AddVariableInt(_vector2Int.x);
                             syncBufferBuilder.AddVariableInt(_vector2Int.y);
-#else
-                            _int32TMP = _vector2Int.x;
-                            syncBufferBuilder.Add((byte) ((_int32TMP >> Bit24) & 255u));
-                            syncBufferBuilder.Add((byte) ((_int32TMP >> Bit16) & 255u));
-                            syncBufferBuilder.Add((byte) ((_int32TMP >> Bit8) & 255u));
-                            syncBufferBuilder.Add((byte) (_int32TMP & 255u));
-                            _int32TMP = _vector2Int.y;
-                            syncBufferBuilder.Add((byte) ((_int32TMP >> Bit24) & 255u));
-                            syncBufferBuilder.Add((byte) ((_int32TMP >> Bit16) & 255u));
-                            syncBufferBuilder.Add((byte) ((_int32TMP >> Bit8) & 255u));
-                            syncBufferBuilder.Add((byte) (_int32TMP & 255u));
-#endif
+
                         }
 
                         break;
@@ -1251,27 +1199,10 @@ namespace Miner28.UdonUtils.Network
                         for (_int32TMP2 = 0; _int32TMP2 < _int32TMP; _int32TMP2++)
                         {
                             _vector3Int = _vector3IntA[_int32TMP2];
-#if NETCALLER_USE_VARIABLE_SERIALIZATION
                             syncBufferBuilder.AddVariableInt(_vector3Int.x);
                             syncBufferBuilder.AddVariableInt(_vector3Int.y);
                             syncBufferBuilder.AddVariableInt(_vector3Int.z);
-#else
-                            _int32TMP = _vector3Int.x;
-                            syncBufferBuilder.Add((byte) ((_int32TMP >> Bit24) & 255u));
-                            syncBufferBuilder.Add((byte) ((_int32TMP >> Bit16) & 255u));
-                            syncBufferBuilder.Add((byte) ((_int32TMP >> Bit8) & 255u));
-                            syncBufferBuilder.Add((byte) (_int32TMP & 255u));
-                            _int32TMP = _vector3Int.y;
-                            syncBufferBuilder.Add((byte) ((_int32TMP >> Bit24) & 255u));
-                            syncBufferBuilder.Add((byte) ((_int32TMP >> Bit16) & 255u));
-                            syncBufferBuilder.Add((byte) ((_int32TMP >> Bit8) & 255u));
-                            syncBufferBuilder.Add((byte) (_int32TMP & 255u));
-                            _int32TMP = _vector3Int.z;
-                            syncBufferBuilder.Add((byte) ((_int32TMP >> Bit24) & 255u));
-                            syncBufferBuilder.Add((byte) ((_int32TMP >> Bit16) & 255u));
-                            syncBufferBuilder.Add((byte) ((_int32TMP >> Bit8) & 255u));
-                            syncBufferBuilder.Add((byte) (_int32TMP & 255u));
-#endif
+
                         }
 
                         break;

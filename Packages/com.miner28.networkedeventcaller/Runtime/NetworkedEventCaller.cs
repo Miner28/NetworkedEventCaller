@@ -1,11 +1,11 @@
-#define NETCALLER_USE_VARIABLE_SERIALIZATION
-#define NETCALLER_DEBUG
 using System;
+using System.Diagnostics;
 using UdonSharp;
 using UnityEngine;
 using VRC.SDK3.Data;
 using VRC.SDKBase;
 using VRC.Udon.Common;
+using Debug = UnityEngine.Debug;
 
 namespace Miner28.UdonUtils.Network
 {
@@ -225,6 +225,13 @@ namespace Miner28.UdonUtils.Network
             _methodInfos = networkManager.methodInfos;
             _methodInfosKeys = networkManager.methodInfosKeys;
         }
+        
+        private void OnEnable()
+        {
+            if (_startRun) return;
+            _startRun = true;
+            _debug = networkManager.debug;
+        }
 
         public override void OnPreSerialization()
         {
@@ -242,138 +249,7 @@ namespace Miner28.UdonUtils.Network
                 LogWarning($"Failed Serialization - {result.byteCount}");
             }
         }
-
-        internal void _PrepareSend(uint intTarget, string method, uint scriptTarget, DataToken[] data)
-        {
-            SyncTarget target = SyncTarget.All;
-            if (intTarget <= 100)
-            {
-                target = (SyncTarget) intTarget;
-            }
-            else
-            {
-                target = (SyncTarget) (-1);
-            }
-
-            var sIndex = Array.IndexOf(sceneInterfacesIds, scriptTarget);
-            if (sIndex == -1)
-            {
-                LogError($"Invalid script target: {scriptTarget} - {method} can't send method if target is invalid");
-                return;
-            }
-
-            var methodId = _methodInfosKeys.IndexOf(method);
-            if (methodId == -1)
-            {
-                LogError(
-                    $"<color=#FF0000>Invalid method: {method}</color> - {method} can't send method if method is invalid, check if method is public and marked as [NetworkedMethod]");
-                return;
-            }
-
-            uint methodIdUint = (uint) methodId;
-
-            if (_debug)
-            {
-                Log($"Preparing Send - {method} - {methodIdUint} - {scriptTarget} - {sIndex} - {target}");
-            }
-
-            var byteList = SendData(methodIdUint, scriptTarget, intTarget, data);
-            if (byteList == null)
-            {
-                LogError($"Failed to send data - {method} - {methodIdUint} - {scriptTarget} - {sIndex} - {target}");
-                return;
-            }
-
-            //Limit sending method every 0.125 seconds - 8 times per second 
-            if (Time.realtimeSinceStartup - _lastSendTime < 0.125f)
-            {
-                _dataQueue.Add(byteList);
-                if (!_queueRunning)
-                {
-                    _queueRunning = true;
-                    SendCustomEventDelayedSeconds(nameof(_SendQueue),
-                        0.125f - (Time.realtimeSinceStartup - _lastSendTime));
-                }
-            }
-            else
-            {
-                _lastSendTime = Time.realtimeSinceStartup;
-
-                if (syncBuffer.Length != byteList.Count)
-                {
-                    syncBuffer = new byte[byteList.Count];
-                }
-
-                for (int i = 0; i < byteList.Count; i++)
-                {
-                    syncBuffer[i] = byteList[i].Byte;
-                }
-
-                byteList.Clear();
-
-                RequestSerialization();
-            }
-
-            if (target == SyncTarget.All ||
-                target == SyncTarget.Local ||
-                (target == SyncTarget.Master && Networking.IsMaster) ||
-                (target == SyncTarget.NonMaster && !Networking.IsMaster) ||
-                (target == (SyncTarget) (-1) && Networking.LocalPlayer.playerId == intTarget - 100))
-            {
-                var methodKey = _methodInfosKeys[methodId];
-                var methodInfo = _methodInfos[methodKey].DataDictionary;
-
-                _targetScript = sceneInterfaces[sIndex];
-
-                if (methodInfo.TryGetValue("parameters", out var parametersToken))
-                {
-                    if (!parametersToken.IsNull)
-                    {
-                        var parameters = parametersToken.DataList;
-                        for (int i = 0; i < data.Length; i++)
-                        {
-                            SetUdonVariable(parameters[i].String, data[i]);
-                        }
-                    }
-                }
-
-                _targetScript.SendCustomEvent(methodInfo["methodName"].String);
-            }
-        }
-
-
-        public void _SendQueue()
-        {
-            if (_dataQueue.Count == 0)
-            {
-                _queueRunning = false;
-                return;
-            }
-
-            Log($"Handling queue {_dataQueue.Count}");
-
-
-            var byteList = _dataQueue[0].DataList;
-
-            _dataQueue.RemoveAt(0);
-
-            if (syncBuffer.Length != byteList.Count)
-            {
-                syncBuffer = new byte[byteList.Count];
-            }
-
-            for (int i = 0; i < byteList.Count; i++)
-            {
-                syncBuffer[i] = byteList[i].Byte;
-            }
-
-            byteList.Clear();
-
-            _lastSendTime = Time.realtimeSinceStartup;
-
-            SendCustomEventDelayedSeconds(nameof(_SendQueue), 0.125f);
-        }
-
+        
         public override void OnDeserialization()
         {
             int offset = 0;
@@ -434,10 +310,28 @@ namespace Miner28.UdonUtils.Network
                 return;
             }
 
-            ReceiveData(); //Convert data from buffer to parameters
+            Stopwatch stopwatch = new Stopwatch();
+            stopwatch.Start();
+            
+            int startOffset = 0;
+            while (true)
+            {
+                //Read data
+                startOffset = ReceiveData(startOffset); //Convert data from buffer to parameters
+                SendUdonMethod(sceneInterfaces[sIndex], (int) methodTarget); //Send method to target script
+                
+                //Check if there is more data
+                if (startOffset >= syncBuffer.Length - 1) break;
+            }
 
-            _targetScript = sceneInterfaces[sIndex];
-            var methodKey = _methodInfosKeys[(int) methodTarget];
+            stopwatch.Stop();
+            Log($"Deserialization Time: {stopwatch.ElapsedMilliseconds}");
+        }
+
+        private void SendUdonMethod(NetworkInterface target, int methodTarget)
+        {
+            _targetScript = target;
+            var methodKey = _methodInfosKeys[methodTarget];
             var methodInfo = _methodInfos[methodKey].DataDictionary;
 
             if (methodInfo.TryGetValue("parameters", out var parametersToken))
@@ -454,6 +348,147 @@ namespace Miner28.UdonUtils.Network
 
             _targetScript.SendCustomEvent(methodInfo["methodName"].String);
         }
+
+
+        internal void _PrepareSend(uint intTarget, string method, uint scriptTarget, DataToken[] data)
+        {
+            SyncTarget target = SyncTarget.All;
+            if (intTarget <= 100)
+            {
+                target = (SyncTarget) intTarget;
+            }
+            else
+            {
+                target = (SyncTarget) (-1);
+            }
+
+            var sIndex = Array.IndexOf(sceneInterfacesIds, scriptTarget);
+            if (sIndex == -1)
+            {
+                LogError($"Invalid script target: {scriptTarget} - {method} can't send method if target is invalid");
+                return;
+            }
+
+            var methodId = _methodInfosKeys.IndexOf(method);
+            if (methodId == -1)
+            {
+                LogError(
+                    $"<color=#FF0000>Invalid method: {method}</color> - {method} can't send method if method is invalid, check if method is public and marked as [NetworkedMethod]");
+                return;
+            }
+
+            uint methodIdUint = (uint) methodId;
+
+            if (_debug)
+            {
+                Log($"Preparing Send - {method} - {methodIdUint} - {scriptTarget} - {sIndex} - {target}");
+            }
+
+            var byteList = SendData(methodIdUint, scriptTarget, intTarget, data);
+            if (byteList == null)
+            {
+                LogError($"Failed to send data - {method} - {methodIdUint} - {scriptTarget} - {sIndex} - {target}");
+                return;
+            }
+
+            //Limit sending method every 0.33 seconds - 3 times per second 
+            if (Time.realtimeSinceStartup - _lastSendTime < 0.33f)
+            {
+                _dataQueue.Add(byteList);
+                if (!_queueRunning)
+                {
+                    _queueRunning = true;
+                    SendCustomEventDelayedSeconds(nameof(_SendQueue),
+                        0.33f - (Time.realtimeSinceStartup - _lastSendTime));
+                }
+            }
+            else
+            {
+                _lastSendTime = Time.realtimeSinceStartup;
+                
+                //Offload to Queue to handle sending multiple methods at once
+                _dataQueue.Add(byteList);
+                
+                if (!_queueRunning)
+                {
+                    _queueRunning = true;
+                    SendCustomEventDelayedSeconds(nameof(_SendQueue), 
+                        0.33f - (Time.realtimeSinceStartup - _lastSendTime)
+                        );
+                }
+                
+            }
+
+            if (target == SyncTarget.All ||
+                target == SyncTarget.Local ||
+                (target == SyncTarget.Master && Networking.IsMaster) ||
+                (target == SyncTarget.NonMaster && !Networking.IsMaster) ||
+                (target == (SyncTarget) (-1) && Networking.LocalPlayer.playerId == intTarget - 100))
+            {
+                var methodKey = _methodInfosKeys[methodId];
+                var methodInfo = _methodInfos[methodKey].DataDictionary;
+
+                _targetScript = sceneInterfaces[sIndex];
+
+                if (methodInfo.TryGetValue("parameters", out var parametersToken))
+                {
+                    if (!parametersToken.IsNull)
+                    {
+                        var parameters = parametersToken.DataList;
+                        for (int i = 0; i < data.Length; i++)
+                        {
+                            SetUdonVariable(parameters[i].String, data[i]);
+                        }
+                    }
+                }
+
+                _targetScript.SendCustomEvent(methodInfo["methodName"].String);
+            }
+        }
+
+
+        public void _SendQueue()
+        {
+            if (_dataQueue.Count == 0)
+            {
+                _queueRunning = false;
+                return;
+            }
+
+            Log($"Handling queue {_dataQueue.Count}");
+            
+            
+            int requiredSize = 0;
+            for (int i = 0; i < _dataQueue.Count; i++)
+            {
+                requiredSize += _dataQueue[i].DataList.Count;
+            }
+            
+            if (syncBuffer.Length != requiredSize)
+            {
+                syncBuffer = new byte[requiredSize];
+            }
+            
+            int offset = 0;
+            for (int i = 0; i < _dataQueue.Count; i++)
+            {
+                var data = _dataQueue[i].DataList;
+                for (int j = 0; j < data.Count; j++)
+                {
+                    syncBuffer[offset] = data[j].Byte;
+                    offset++;
+                }
+                data.Clear();
+            }
+            
+            _dataQueue.Clear();
+
+            _lastSendTime = Time.realtimeSinceStartup;
+            
+            RequestSerialization();
+            SendCustomEventDelayedSeconds(nameof(_SendQueue), 0.33f);
+        }
+
 
 
         private void SetUdonVariable(string variable, DataToken token)
@@ -621,12 +656,7 @@ namespace Miner28.UdonUtils.Network
         }
 
 
-        private void OnEnable()
-        {
-            if (_startRun) return;
-            _startRun = true;
-            _debug = networkManager.debug;
-        }
+
 
 
         private void Log(object log)
