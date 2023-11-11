@@ -144,7 +144,7 @@ namespace Miner28.UdonUtils.Network.Editor
                     }
                     catch (ArgumentException e)
                     {
-                        Debug.LogError($"[NetworkEventCaller] Duplicate Networked Method: {methodInfo.Name} is this an overload? Overloads are not supported!");
+                        Debug.LogError($"[NetworkEventCaller] Duplicate Networked Method: {methodInfo.Name} is this an overload? Overloads are not supported! If this is a class inheriting from another class with Networked Methods, you may ignore this error.");
                     }
                 }
             }
