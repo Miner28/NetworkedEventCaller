@@ -211,8 +211,6 @@ namespace Miner28.UdonUtils.Network
         
         private DataList syncBufferBuilder = new DataList();
 
-        private DataList _methodQueue = new DataList();
-        private DataList _targetQueue = new DataList();
         private DataList _dataQueue = new DataList();
         private bool _queueRunning;
         private float _lastSendTime;
@@ -246,8 +244,16 @@ namespace Miner28.UdonUtils.Network
         
         internal void _PrepareSend(uint intTarget, string method, uint scriptTarget, DataToken[] data)
         {
-            var target = (SyncTarget) intTarget;
-            if (intTarget > 100) intTarget -= 100; //TODO - Add support for sending to specific player
+            SyncTarget target = SyncTarget.All;
+            if (intTarget <= 100)
+            {
+                target = (SyncTarget) intTarget;
+            }
+            else
+            {
+                target = (SyncTarget) (-1);
+
+            }
 
             var sIndex = Array.IndexOf(sceneInterfacesIds, scriptTarget);
             if (sIndex == -1)
@@ -271,15 +277,17 @@ namespace Miner28.UdonUtils.Network
                 Log($"Preparing Send - {method} - {methodIdUint} - {scriptTarget} - {sIndex} - {target}");
             }
             
+            var byteList = SendData(methodIdUint, scriptTarget, intTarget, data);
+            if (byteList == null)
+            {
+                LogError($"Failed to send data - {method} - {methodIdUint} - {scriptTarget} - {sIndex} - {target}");
+                return;
+            }
 
             //Limit sending method every 0.125 seconds - 8 times per second 
             if (Time.realtimeSinceStartup - _lastSendTime < 0.125f)
             {
-                _methodQueue.Add(methodIdUint);
-                _targetQueue.Add(scriptTarget);
-                DataToken[] dataTokens = new DataToken[data.Length];
-                Array.Copy(data, dataTokens, data.Length);
-                _dataQueue.Add(new DataToken(dataTokens));
+                _dataQueue.Add(byteList);
                 if (!_queueRunning)
                 {
                     _queueRunning = true;
@@ -289,10 +297,27 @@ namespace Miner28.UdonUtils.Network
             else
             {
                 _lastSendTime = Time.realtimeSinceStartup;
-                SendData(methodIdUint, scriptTarget, data);
+
+                if (syncBuffer.Length != byteList.Count)
+                {
+                    syncBuffer = new byte[byteList.Count];
+                }
+                
+                for (int i = 0; i < byteList.Count; i++)
+                {
+                    syncBuffer[i] = byteList[i].Byte;
+                }
+                
+                byteList.Clear();
+                
+                RequestSerialization();
             }
             
-            if (target == SyncTarget.All || target == SyncTarget.Local)
+            if (target == SyncTarget.All || 
+                target == SyncTarget.Local || 
+                (target == SyncTarget.Master && Networking.IsMaster) || 
+                (target == SyncTarget.NonMaster && !Networking.IsMaster) || 
+                (target == (SyncTarget) (-1) && Networking.LocalPlayer.playerId == intTarget - 100))
             {
                 var methodKey = _methodInfosKeys[methodId];
                 var methodInfo = _methodInfos[methodKey].DataDictionary;
@@ -321,22 +346,31 @@ namespace Miner28.UdonUtils.Network
 
         public void _SendQueue()
         {
-            if (_methodQueue.Count == 0)
+            if (_dataQueue.Count == 0)
             {
                 _queueRunning = false;
                 return;
             }
 
-            Log($"Handling queue {_methodQueue.Count}");
+            Log($"Handling queue {_dataQueue.Count}");
 
-            var method = _methodQueue[0].UInt;
-            var target = _targetQueue[0].UInt;
-            var data = (DataToken[]) _dataQueue[0].Reference;
 
-            _methodQueue.RemoveAt(0);
-            _targetQueue.RemoveAt(0);
+            var byteList = _dataQueue[0].DataList;
+                
             _dataQueue.RemoveAt(0);
-            SendData(method, target, data);
+            
+            if (syncBuffer.Length != byteList.Count)
+            {
+                syncBuffer = new byte[byteList.Count];
+            }
+            
+            for (int i = 0; i < byteList.Count; i++)
+            {
+                syncBuffer[i] = byteList[i].Byte;
+            }
+            
+            byteList.Clear();
+
             _lastSendTime = Time.realtimeSinceStartup;
 
             SendCustomEventDelayedSeconds(nameof(_SendQueue), 0.125f);
@@ -346,13 +380,40 @@ namespace Miner28.UdonUtils.Network
         {
             int offset = 0;
             offset += syncBuffer.ReadVariableInt(offset, out uint length);
+            offset += syncBuffer.ReadVariableInt(offset, out uint playerTarget);
+
+            if (playerTarget > 100)
+            {
+                if (playerTarget - 100 != Networking.LocalPlayer.playerId)
+                {
+                    if (_debug)
+                        Log(
+                            $"Ignoring deserialization, not my player id: {playerTarget - 100} - {Networking.LocalPlayer.playerId}");
+                    return;
+                }
+            }
+            else
+            {
+                var target = (SyncTarget) playerTarget;
+                if (target == SyncTarget.Master && !Networking.IsMaster)
+                {
+                    if (_debug) Log($"Ignoring deserialization, not master");
+                    return;
+                }
+                
+                if (target == SyncTarget.NonMaster && Networking.IsMaster)
+                {
+                    if (_debug) Log($"Ignoring deserialization, not non master");
+                    return;
+                }
+            }
+            
             offset += syncBuffer.ReadVariableInt(offset, out uint methodTarget);
             if (_debug)
             {
                 Log($"Deserialization - {methodTarget} - Size {syncBuffer.Length}");
             }
-
-            if (methodTarget == -1) return;
+            
             
             offset += syncBuffer.ReadVariableInt(offset, out uint scriptTarget);
             syncBuffer.ReadVariableInt(offset, out uint sentOutMethods);

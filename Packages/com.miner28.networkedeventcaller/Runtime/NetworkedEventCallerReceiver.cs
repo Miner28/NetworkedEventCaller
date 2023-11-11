@@ -17,8 +17,8 @@ namespace Miner28.UdonUtils.Network
             {
                 _parameters = new DataToken[length];
             }
-
             
+            _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out uint target);
             _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out uint method);
             _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out uint scriptTarget);
             _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out uint sentOutMethods);

@@ -8,19 +8,20 @@ namespace Miner28.UdonUtils.Network
 {
     public partial class NetworkedEventCaller : UdonSharpBehaviour
     {
-        private void SendData(uint method, uint scriptTarget, DataToken[] data)
+        private DataList SendData(uint method, uint scriptTarget, uint target, DataToken[] data)
         {
             var sIndex = Array.IndexOf(sceneInterfacesIds, scriptTarget);
             if (sIndex == -1)
             {
                 LogError($"Invalid script target: {scriptTarget} - {method} can't send method if target is invalid");
-                return;
+                return null;
             }
 
-            syncBufferBuilder.Clear();
+            syncBufferBuilder = new DataList();
 
             _localSentOut++;
             syncBufferBuilder.AddVariableInt(Convert.ToUInt32(data.Length));
+            syncBufferBuilder.AddVariableInt(target);
             syncBufferBuilder.AddVariableInt(method);
             syncBufferBuilder.AddVariableInt(scriptTarget);
             syncBufferBuilder.AddVariableInt(_localSentOut);
@@ -1312,27 +1313,16 @@ namespace Miner28.UdonUtils.Network
                 }
             }
 
-            if (syncBuffer.Length != syncBufferBuilder.Count)
-            {
-                syncBuffer = new byte[syncBufferBuilder.Count];
-            }
-
-            for (int i = 0; i < syncBufferBuilder.Count; i++)
-            {
-                syncBuffer[i] = syncBufferBuilder[i].Byte;
-            }
-
-            syncBufferBuilder.Clear();
+            
 
 
             if (_debug)
             {
-                Log(
-                    $"Sending {method} to {scriptTarget} with {data.Length} parameters totaling {syncBuffer.Length} bytes");
+                Log($"[SyncBuffer] [Build] [End] [Size: {syncBufferBuilder.Count}] [Time: {DateTime.Now:HH:mm:ss.fff}]");
             }
 
 
-            RequestSerialization();
+            return syncBufferBuilder;
         }
     }
 }

@@ -33,8 +33,6 @@ namespace Miner28.UdonUtils.Network
             _caller._PrepareSend(Convert.ToUInt32(target), $"{_udonClassName}.{methodName}", networkID, paramTokens);
         }
         
-        /*
-         TODO - Implement this
          public void SendMethodNetworked(string methodName, VRCPlayerApi target, params DataToken[] paramTokens)
         {
             if (!_callerAssigned)
@@ -50,7 +48,7 @@ namespace Miner28.UdonUtils.Network
             
             _caller._PrepareSend(Convert.ToUInt32(target.playerId + 100), $"{_udonClassName}.{methodName}", networkID, paramTokens);
         }
-        */
+        
         
 
         internal void SetupInterface()

@@ -2,7 +2,9 @@
 {
     All,
     Local,
-    Others
+    Others,
+    Master,
+    NonMaster,
 }   
 
 public enum Types
