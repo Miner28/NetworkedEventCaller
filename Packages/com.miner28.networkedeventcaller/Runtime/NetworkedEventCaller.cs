@@ -252,6 +252,12 @@ namespace Miner28.UdonUtils.Network
         
         public override void OnDeserialization()
         {
+            if (syncBuffer.Length == 0) 
+            {
+                if (_debug) Log($"Empty buffer, (Likely caused by serialization after playerLeft)");
+                return;
+            }
+            
             int offset = 0;
             offset += syncBuffer.ReadVariableInt(offset, out uint length);
             offset += syncBuffer.ReadVariableInt(offset, out uint playerTarget);

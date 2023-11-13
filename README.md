@@ -9,7 +9,7 @@
 ### 2. On NetworkManager set the amount of NetworkedEventCallers you wish to generate and press Setup NetworkManager. This will generate the NetworkedEventCallers and set them up.
 ## Your code setup
 ### 1. Inherit from NetworkInterface on the class you wish to call and receive events/methods on.
-### 2. Use `SendNetworkedMethod` to send a method/event over the network. The parameters you send much much 1:1 in type and order to the parameters of the method/event you are calling. Otherwise this will crash the UdonBehaviour.
+### 2. Use `SendNetworkedMethod` to send a method/event over the network. The parameters you send must match 1:1 in type and order to the parameters of the method/event you are calling. Otherwise this will crash the UdonBehaviour.
 
 # Example
 ## Sending a method/event
