@@ -1251,7 +1251,10 @@ namespace Miner28.UdonUtils.Network
                     $"[SyncBuffer] [Build] [End] [Size: {syncBufferBuilder.Count}] [Time: {DateTime.Now:HH:mm:ss.fff}]");
             }
 
-
+            var lengthBytes = new DataList();
+            lengthBytes.AddVariableInt(Convert.ToUInt32(syncBufferBuilder.Count));
+            //We insert the length of the buffer at the start of the buffer
+            syncBufferBuilder.InsertRange(0, lengthBytes);
             return syncBufferBuilder;
         }
     }

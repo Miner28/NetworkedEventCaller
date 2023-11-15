@@ -258,80 +258,94 @@ namespace Miner28.UdonUtils.Network
                 return;
             }
             
-            int offset = 0;
-            offset += syncBuffer.ReadVariableInt(offset, out uint length);
-            offset += syncBuffer.ReadVariableInt(offset, out uint playerTarget);
-
-            if (playerTarget > 100)
-            {
-                if (playerTarget - 100 != Networking.LocalPlayer.playerId)
-                {
-                    if (_debug)
-                        Log(
-                            $"Ignoring deserialization, not my player id: {playerTarget - 100} - {Networking.LocalPlayer.playerId}");
-                    return;
-                }
-            }
-            else
-            {
-                var target = (SyncTarget) playerTarget;
-                if (target == SyncTarget.Master && !Networking.IsMaster)
-                {
-                    if (_debug) Log($"Ignoring deserialization, not master");
-                    return;
-                }
-
-                if (target == SyncTarget.NonMaster && Networking.IsMaster)
-                {
-                    if (_debug) Log($"Ignoring deserialization, not non master");
-                    return;
-                }
-            }
-
-            offset += syncBuffer.ReadVariableInt(offset, out uint methodTarget);
-            if (_debug)
-            {
-                Log($"Deserialization - {methodTarget} - Size {syncBuffer.Length}");
-            }
-
-
-            offset += syncBuffer.ReadVariableInt(offset, out uint scriptTarget);
-            syncBuffer.ReadVariableInt(offset, out uint sentOutMethods);
-            if (_localSentOut >= sentOutMethods && _localSentOut != 0)
-            {
-                if (_debug)
-                    LogWarning(
-                        $"Ignoring deserialization, already sent out Local: {_localSentOut} - Global: {sentOutMethods}");
-                _localSentOut = sentOutMethods;
-                return;
-            }
-
-            _localSentOut = sentOutMethods;
-
-
-            var sIndex = Array.IndexOf(sceneInterfacesIds, scriptTarget);
-            if (sIndex == -1)
-            {
-                LogError("Script target not found unable to receive and process data");
-                return;
-            }
-
-            Stopwatch stopwatch = new Stopwatch();
-            stopwatch.Start();
             
             int startOffset = 0;
+
             while (true)
             {
+                int preReadOffset = startOffset;
+                preReadOffset += syncBuffer.ReadVariableInt(preReadOffset, out uint byteLength);
+                preReadOffset += syncBuffer.ReadVariableInt(preReadOffset, out uint length);
+                preReadOffset += syncBuffer.ReadVariableInt(preReadOffset, out uint playerTarget);
+                
+                bool shouldDeserialize = true;
+                if (playerTarget > 100)
+                {
+                    if (playerTarget - 100 != Networking.LocalPlayer.playerId)
+                    {
+                        if (_debug)
+                            Log(
+                                $"Ignoring deserialization, not my player id: {playerTarget - 100} - {Networking.LocalPlayer.playerId}");
+                        shouldDeserialize = false;
+                    }
+                }
+                else
+                {
+                    var target = (SyncTarget) playerTarget;
+                    if (target == SyncTarget.Master && !Networking.IsMaster)
+                    {
+                        if (_debug) Log($"Ignoring deserialization, not master");
+                        shouldDeserialize = false;
+                    }
+
+                    if (target == SyncTarget.NonMaster && Networking.IsMaster)
+                    {
+                        if (_debug) Log($"Ignoring deserialization, not non master");
+                        shouldDeserialize = false;
+                    }
+                }
+                
+                uint methodTarget = 0;
+                if (shouldDeserialize)
+                {
+                    preReadOffset += syncBuffer.ReadVariableInt(preReadOffset, out methodTarget);
+                    if (_debug)
+                    {
+                        Log($"Deserialization - {methodTarget} - Size {syncBuffer.Length}");
+                    }
+                }
+                
+                int sIndex = -1;
+                if (shouldDeserialize)
+                {
+                    preReadOffset += syncBuffer.ReadVariableInt(preReadOffset, out uint scriptTarget);
+                    syncBuffer.ReadVariableInt(preReadOffset, out uint sentOutMethods);
+                    if (_localSentOut >= sentOutMethods && _localSentOut != 0)
+                    {
+                        if (_debug)
+                            LogWarning(
+                                $"Ignoring deserialization, already sent out Local: {_localSentOut} - Global: {sentOutMethods}");
+                        _localSentOut = sentOutMethods;
+                        shouldDeserialize = false;
+                    }
+
+                    _localSentOut = sentOutMethods;
+                    sIndex = Array.IndexOf(sceneInterfacesIds, scriptTarget);
+                    if (sIndex == -1)
+                    {
+                        LogError("Script target not found unable to receive and process data");
+                        shouldDeserialize = false;
+                    }
+                }
+                
+                
                 //Read data
-                startOffset = ReceiveData(startOffset); //Convert data from buffer to parameters
-                SendUdonMethod(sceneInterfaces[sIndex], (int) methodTarget); //Send method to target script
+                if (shouldDeserialize)
+                {
+                    startOffset = ReceiveData(startOffset); //Convert data from buffer to parameters
+                    SendUdonMethod(sceneInterfaces[sIndex], (int) methodTarget); //Send method to target script
+                }
+                else
+                {
+                    startOffset += (int) byteLength;
+                }
+                
                 
                 //Check if there is more data
                 if (startOffset >= syncBuffer.Length - 1) break;
             }
 
-            stopwatch.Stop();
-            Log($"Deserialization Time: {stopwatch.ElapsedMilliseconds}");
+
         }
 
         private void SendUdonMethod(NetworkInterface target, int methodTarget)
