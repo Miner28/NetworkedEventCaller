@@ -34,7 +34,7 @@ namespace Miner28.UdonUtils.Network
 
                 if (typeByte < 60)
                 {
-                    if (typeByte >= (int) Types.BooleanA)
+                    if (typeByte >= (int) Types.BooleanA && typeByte != (byte) Types.Null)
                     {
                         _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out length);
                     }
