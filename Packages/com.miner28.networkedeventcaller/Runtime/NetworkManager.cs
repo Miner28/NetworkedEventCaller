@@ -28,6 +28,8 @@ namespace Miner28.UdonUtils.Network
         [UdonSynced] private int[] poolOwners = new int[100];
         [UdonSynced] private int[] toClean = new int[0];
 
+        public SyncChannel syncChannel = SyncChannel.Channel1;
+
         private bool _runOnce;
 
         private void OnEnable()

@@ -281,17 +281,29 @@ namespace Miner28.UdonUtils.Network
                 }
                 else
                 {
-                    var target = (SyncTarget) playerTarget;
-                    if (target == SyncTarget.Master && !Networking.IsMaster)
+                    if (playerTarget >= 8) 
                     {
-                        if (_debug) Log($"Ignoring deserialization, not master");
-                        shouldDeserialize = false;
-                    }
+                        SyncChannel channel = (SyncChannel) playerTarget;
+                        if (channel != networkManager.syncChannel)
+                        {
+                            if (_debug) Log($"Ignoring deserialization, not in channel");
+                            shouldDeserialize = false;
+                        }
+                    } 
+                    else
+                    {
+                        var target = (SyncTarget) playerTarget;
+                        if (target == SyncTarget.Master && !Networking.IsMaster)
+                        {
+                            if (_debug) Log($"Ignoring deserialization, not master");
+                            shouldDeserialize = false;
+                        }
 
-                    if (target == SyncTarget.NonMaster && Networking.IsMaster)
-                    {
-                        if (_debug) Log($"Ignoring deserialization, not non master");
-                        shouldDeserialize = false;
+                        if (target == SyncTarget.NonMaster && Networking.IsMaster)
+                        {
+                            if (_debug) Log($"Ignoring deserialization, not non master");
+                            shouldDeserialize = false;
+                        }
                     }
                 }
                 
@@ -373,9 +385,15 @@ namespace Miner28.UdonUtils.Network
         internal void _PrepareSend(uint intTarget, string method, uint scriptTarget, DataToken[] data)
         {
             SyncTarget target = SyncTarget.All;
+            SyncChannel syncChannel = (SyncChannel)(-1);
             if (intTarget <= 100)
             {
-                target = (SyncTarget) intTarget;
+                if (intTarget < 8)
+                    target = (SyncTarget)intTarget;
+                else {
+                    target = (SyncTarget)99;
+                    syncChannel = (SyncChannel)intTarget;
+                }
             }
             else
             {
@@ -440,6 +458,7 @@ namespace Miner28.UdonUtils.Network
             }
 
             if (target == SyncTarget.All ||
+                syncChannel == networkManager.syncChannel ||
                 target == SyncTarget.Local ||
                 (target == SyncTarget.Master && Networking.IsMaster) ||
                 (target == SyncTarget.NonMaster && !Networking.IsMaster) ||

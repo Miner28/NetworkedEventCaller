@@ -56,6 +56,19 @@ namespace Miner28.UdonUtils.Network
                 paramTokens);
         }
 
+        public void SendMethodNetworked(string methodName, SyncChannel channel, params DataToken[] paramTokens) {
+            if (!_callerAssigned) {
+                if (_caller == null) {
+                    Debug.LogError($"Caller not assigned unable to send method - {methodName}");
+                    return;
+                }
+
+                _callerAssigned = true;
+            }
+
+            _caller._PrepareSend(Convert.ToUInt32(channel), $"{_udonClassName}.{methodName}", networkID, paramTokens);
+        }
+
 
         internal void SetupInterface()
         {

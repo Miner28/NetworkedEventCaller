@@ -7,6 +7,18 @@
     NonMaster,
 }
 
+public enum SyncChannel
+{
+    Channel1 = 8,
+    Channel2 = 9,
+    Channel3 = 10,
+    Channel4 = 11,
+    Channel5 = 12,
+    Channel6 = 13,
+    Channel7 = 14,
+    Channel8 = 15,
+}
+
 public enum Types
 {
     Boolean,
