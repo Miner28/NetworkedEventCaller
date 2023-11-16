@@ -12,7 +12,6 @@ namespace Miner28.UdonUtils.Network
         {
             _bufferOffset = startIndex;
 
-            _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out uint byteLength);
             _bufferOffset += syncBuffer.ReadVariableInt(_bufferOffset, out uint length);
             if (_parameters.Length != length)
             {

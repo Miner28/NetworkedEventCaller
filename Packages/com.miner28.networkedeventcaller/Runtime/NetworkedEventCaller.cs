@@ -263,10 +263,13 @@ namespace Miner28.UdonUtils.Network
 
             while (true)
             {
+                startOffset += syncBuffer.ReadVariableInt(startOffset, out uint byteLength);
+                
                 int preReadOffset = startOffset;
-                preReadOffset += syncBuffer.ReadVariableInt(preReadOffset, out uint byteLength);
                 preReadOffset += syncBuffer.ReadVariableInt(preReadOffset, out uint length);
                 preReadOffset += syncBuffer.ReadVariableInt(preReadOffset, out uint playerTarget);
+                
+                Debug.Log($"ByteLength: {byteLength} - Length: {length} - PlayerTarget: {playerTarget} Total: {syncBuffer.Length}");
                 
                 bool shouldDeserialize = true;
                 if (playerTarget > 100)
