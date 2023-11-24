@@ -526,7 +526,7 @@ namespace Miner28.UdonUtils.Network
             _dataQueue.Clear();
 
             _lastSendTime = Time.realtimeSinceStartup;
-            
+            if (!Networking.IsOwner(gameObject)) Networking.SetOwner(Networking.LocalPlayer, gameObject);
             RequestSerialization();
             SendCustomEventDelayedSeconds(nameof(_SendQueue), 0.33f);
         }
