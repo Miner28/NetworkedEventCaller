@@ -346,102 +346,85 @@ namespace Miner28.UdonUtils
         {
             uint uValue = 0;
             int bytesRead = 0;
+            int shift = 0;
 
-            byte b = array[startIndex];
-            uValue = (uint) (b & 0x7F);
-
-            while ((b & 0x80) != 0)
+            do
             {
-                startIndex++;
                 if (startIndex >= array.Length)
                 {
                     result = 0; // Handle the case where the array is too short.
                     return bytesRead;
                 }
 
-                b = array[startIndex];
-                uValue |= (uint) (b & 0x7F) << (7 * bytesRead);
+                byte b = array[startIndex];
+                uValue |= (uint)(b & 0x7F) << shift;
+                shift += 7;
                 bytesRead++;
-
-                if (bytesRead > 2)
-                {
-                    result = 0; // Handle invalid encoding.
-                    return bytesRead;
-                }
+                startIndex++;
             }
+            while ((array[startIndex - 1] & 0x80) != 0);
 
             // Apply ZigZag decoding to get the original signed short value
-            result = (short) ((uValue >> 1) ^ -(short) (uValue & 1));
+            result = (short)((uValue >> 1) ^ -(short)(uValue & 1));
 
-            return bytesRead + 1;
+            return bytesRead;
         }
+
 
         public static int ReadVariableInt(this byte[] array, int startIndex, out long result)
         {
             ulong uValue = 0;
             int bytesRead = 0;
+            int shift = 0;
 
-            byte b = array[startIndex];
-            uValue = (ulong) (b & 0x7F);
-
-            while ((b & 0x80) != 0)
+            do
             {
-                startIndex++;
                 if (startIndex >= array.Length)
                 {
                     result = 0; // Handle the case where the array is too short.
                     return bytesRead;
                 }
 
-                b = array[startIndex];
-                uValue |= (ulong) (b & 0x7F) << (7 * bytesRead);
+                byte b = array[startIndex];
+                uValue |= (ulong)(b & 0x7F) << shift;
+                shift += 7;
                 bytesRead++;
-
-                if (bytesRead > 9)
-                {
-                    result = 0; // Handle invalid encoding.
-                    return bytesRead;
-                }
+                startIndex++;
             }
+            while ((array[startIndex - 1] & 0x80) != 0);
 
             // Apply ZigZag decoding to get the original signed long value
-            result = (long) ((uValue >> 1) ^ (ulong) -(long) (uValue & 1));
+            result = (long)((uValue >> 1) ^ (ulong) -(long)(uValue & 1));
 
-            return bytesRead + 1;
+            return bytesRead;
         }
 
         public static int ReadVariableInt(this byte[] array, int startIndex, out int result)
         {
             uint uValue = 0;
             int bytesRead = 0;
+            int shift = 0;
 
-            byte b = array[startIndex];
-            uValue = (uint) (b & 0x7F);
-
-            while ((b & 0x80) != 0)
+            do
             {
-                startIndex++;
                 if (startIndex >= array.Length)
                 {
                     result = 0; // Handle the case where the array is too short.
                     return bytesRead;
                 }
 
-                b = array[startIndex];
-                uValue |= (uint) (b & 0x7F) << (7 * bytesRead);
+                byte b = array[startIndex];
+                uValue |= (uint)(b & 0x7F) << shift;
+                shift += 7;
                 bytesRead++;
-
-                if (bytesRead > 5)
-                {
-                    result = 0; // Handle invalid encoding.
-                    return bytesRead;
-                }
+                startIndex++;
             }
+            while ((array[startIndex - 1] & 0x80) != 0);
 
             // Apply ZigZag decoding to get the original signed integer value
-            result = (int) ((uValue >> 1) ^ -(int) (uValue & 1));
+            result = (int)((uValue >> 1) ^ -(int)(uValue & 1));
 
-            return bytesRead + 1;
+            return bytesRead;
         }
 
 
