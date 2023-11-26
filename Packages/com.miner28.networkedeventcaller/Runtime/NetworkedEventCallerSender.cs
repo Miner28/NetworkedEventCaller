@@ -827,8 +827,8 @@ namespace Miner28.UdonUtils.Network
                         syncBufferBuilder.AddVariableInt(Convert.ToUInt32(_int32TMP));
                         for (_int32TMP2 = 0; _int32TMP2 < _int32TMP; _int32TMP2++)
                         {
-                            _int32TMP = _int32A[_int32TMP2];
-                            syncBufferBuilder.AddVariableInt(_int32TMP);
+                            _int32TMP3 = _int32A[_int32TMP2];
+                            syncBufferBuilder.AddVariableInt(_int32TMP3);
 
                         }
 
