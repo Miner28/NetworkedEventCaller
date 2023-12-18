@@ -535,7 +535,7 @@ namespace Miner28.UdonUtils.Network
         private void SetUdonVariable(string variable, DataToken token)
         {
             var type = token.TokenType;
-            int typeId;
+            int typeId = -1;
             if (type != TokenType.Reference)
             {
                 typeId = Array.IndexOf(_tokenMap, type);
@@ -543,7 +543,10 @@ namespace Miner28.UdonUtils.Network
             else
             {
                 var reference = token.Reference;
-                typeId = Array.IndexOf(_typeMap, reference.GetType());
+                if (Utilities.IsValid(reference))
+                {
+                    typeId = Array.IndexOf(_typeMap, reference.GetType());
+                }
             }
 
             Types enumType;
