@@ -250,15 +250,31 @@ namespace Miner28.UdonUtils.Network
             }
         }
         
-        public override void OnDeserialization()
+        public override void OnDeserialization(DeserializationResult result)
         {
+            if (result.isFromStorage)
+            {
+                return;
+            }
             if (syncBuffer.Length == 0) 
             {
                 if (_debug) Log($"Empty buffer, (Likely caused by serialization after playerLeft)");
                 return;
             }
-            
-            
+
+            if (networkManager.networkingActive)
+            {
+                HandleDeserialization(Networking.GetOwner(gameObject), syncBuffer);
+            }
+            else
+            {
+                networkManager.HandlePaused(Networking.GetOwner(gameObject), syncBuffer);
+            }
+        }
+
+        public void HandleDeserialization(VRCPlayerApi sender, byte[] dataBuffer)
+        { 
+            syncBuffer = dataBuffer;
             int startOffset = 0;
 
             while (true)
@@ -347,7 +363,7 @@ namespace Miner28.UdonUtils.Network
                 if (shouldDeserialize)
                 {
                     startOffset = ReceiveData(startOffset); //Convert data from buffer to parameters
-                    SendUdonMethod(sceneInterfaces[sIndex], (int) methodTarget); //Send method to target script
+                    SendUdonMethod(sceneInterfaces[sIndex], (int) methodTarget, sender); //Send method to target script
                 }
                 else
                 {
@@ -358,11 +374,9 @@ namespace Miner28.UdonUtils.Network
                 //Check if there is more data
                 if (startOffset >= syncBuffer.Length - 1) break;
             }
-
-
         }
-
-        private void SendUdonMethod(NetworkInterface target, int methodTarget)
+        
+        private void SendUdonMethod(NetworkInterface target, int methodTarget, VRCPlayerApi sender)
         {
             _targetScript = target;
             var methodKey = _methodInfosKeys[methodTarget];
@@ -379,7 +393,8 @@ namespace Miner28.UdonUtils.Network
                     }
                 }
             }
-
+            
+            _targetScript.eventSenderPlayer = sender;
             _targetScript.SendCustomEvent(methodInfo["methodName"].String);
         }
 

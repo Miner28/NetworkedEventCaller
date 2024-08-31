@@ -10,12 +10,11 @@ namespace Miner28.UdonUtils.Network
     {
         [Header("Network Interface ID")] public uint networkID = 0;
 
-
         [HideInInspector] public NetworkManager networkManagerInternal;
         internal NetworkedEventCaller _caller;
         private string _udonClassName;
-
         private bool _callerAssigned;
+        public VRCPlayerApi eventSenderPlayer;
 
         public void SendMethodNetworked(string methodName, SyncTarget target, params DataToken[] paramTokens)
         {
