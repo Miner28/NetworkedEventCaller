@@ -15,6 +15,7 @@ namespace Miner28.UdonUtils.Network
         private string _udonClassName;
         private bool _callerAssigned;
         public VRCPlayerApi eventSenderPlayer;
+        VRCPlayerApi _netInterfaceLocalPlayer;
 
         public void SendMethodNetworked(string methodName, SyncTarget target, params DataToken[] paramTokens)
         {
@@ -29,6 +30,7 @@ namespace Miner28.UdonUtils.Network
                 _callerAssigned = true;
             }
 
+            eventSenderPlayer = _netInterfaceLocalPlayer;
             _caller._PrepareSend(Convert.ToUInt32(target), $"{_udonClassName}.{methodName}", networkID, paramTokens);
         }
 
@@ -51,6 +53,7 @@ namespace Miner28.UdonUtils.Network
                 return;
             }
 
+            eventSenderPlayer = _netInterfaceLocalPlayer;
             _caller._PrepareSend(Convert.ToUInt32(target.playerId + 100), $"{_udonClassName}.{methodName}", networkID,
                 paramTokens);
         }
@@ -65,6 +68,7 @@ namespace Miner28.UdonUtils.Network
                 _callerAssigned = true;
             }
 
+            eventSenderPlayer = _netInterfaceLocalPlayer;
             _caller._PrepareSend(Convert.ToUInt32(channel), $"{_udonClassName}.{methodName}", networkID, paramTokens);
         }
 
@@ -72,6 +76,7 @@ namespace Miner28.UdonUtils.Network
         internal void SetupInterface()
         {
             _udonClassName = GetUdonTypeName();
+            _netInterfaceLocalPlayer = Networking.LocalPlayer;
         }
 
 
