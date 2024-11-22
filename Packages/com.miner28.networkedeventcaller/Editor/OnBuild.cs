@@ -62,7 +62,6 @@ namespace Miner28.UdonUtils.Network.Editor
                 @interface.networkManagerInternal = networkManager;
             }
 
-            networkManager.sceneCallers = callers.ToArray();
         }
 
         private static void SetupMethodPointers()

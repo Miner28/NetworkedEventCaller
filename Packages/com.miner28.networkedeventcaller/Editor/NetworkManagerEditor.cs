@@ -14,8 +14,6 @@ namespace Miner28.UdonUtils.Network
     [CustomEditor(typeof(NetworkManager))]
     public class NetworkManagerEditor : UnityEditor.Editor
     {
-        private int netCallAmount = 0;
-
         public override void OnInspectorGUI()
         {
             if (UdonSharpGUI.DrawDefaultUdonSharpBehaviourHeader(target)) return;
@@ -24,52 +22,27 @@ namespace Miner28.UdonUtils.Network
             networkManager.debug = EditorGUILayout.Toggle("Debug mode", networkManager.debug);
             
             EditorGUILayout.Space();
-            
-
-
-            GUILayout.Label("Should always be MaxInstanceSize * 2 + 2");
-            netCallAmount = EditorGUILayout.IntSlider("NetCallers: ", netCallAmount, 0, 160);
 
             if (GUILayout.Button("Setup NetworkManager"))
             {
                 GameObject obj = networkManager.gameObject;
                 obj.name = "NetworkManager";
-
-                var pool = obj.GetComponent<VRCObjectPool>();
-
-                if (pool != null)
-                {
-                    Debug.LogWarning($"It appears you have upgraded from an older version of NetworkEventCaller, Performing cleanup on {obj.name}");
-                    DestroyImmediate(pool);
-                }
-
                 
-                var callObj = obj.transform.Find("NetCallers")?.gameObject;
-                if (callObj)
+                var children = obj.GetComponentsInChildren<Transform>(true);
+                foreach (var child in children)
                 {
-                    while (callObj.transform.childCount > 0)
+                    if (child.gameObject.GetComponent<NetworkedEventCaller>() != null)
                     {
-                        DestroyImmediate(callObj.transform.GetChild(0).gameObject);
+                        DestroyImmediate(child.gameObject);
                     }
+
                 }
-                else
-                {
-                    callObj = new GameObject();
-                    callObj.name = "NetCallers";
-                    callObj.transform.SetParent(obj.transform);
-                }
-
-
-                GameObject[] poolObjects = new GameObject[netCallAmount];
-                for (int i = 0; i < netCallAmount; i++)
-                {
-                    var newObj = new GameObject($"NetCaller {i + 1}", typeof(NetworkedEventCaller));
-
-                    newObj.transform.SetParent(callObj.transform);
-                    poolObjects[i] = newObj;
-                }
-
-                networkManager.pool = poolObjects;
+                
+                var newChild = new GameObject("NetworkedEventCaller");
+                newChild.transform.parent = obj.transform;
+                newChild.AddComponent<NetworkedEventCaller>();
+                newChild.GetComponent<NetworkedEventCaller>().networkManager = networkManager;
+                newChild.AddComponent<VRCPlayerObject>();
             }
 
             if (GUILayout.Button("Setup NetworkInterface IDs"))
