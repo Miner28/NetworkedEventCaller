@@ -14,7 +14,7 @@ Use the [VCC Listing](https://miner28.github.io/NetworkedEventCaller/) to instal
 2. On `NetworkManager` set the amount of `NetworkedEventCaller`s you wish to generate and press "Setup NetworkManager". This number should be at least the max occupancy of your instance * 2 + 2. This will generate the `NetworkedEventCaller` instances and set them up.
 ## Your code setup
 ### 1. Inherit from NetworkInterface on the class you wish to call and receive events/methods on.
-### 2. Use `SendNetworkedMethod` to send a method/event over the network. The parameters you send must match 1:1 in type and order to the parameters of the method/event you are calling. Otherwise this will crash the UdonBehaviour.
+### 2. Use `SendMethodNetworked` to send a method/event over the network. The parameters you send must match 1:1 in type and order to the parameters of the method/event you are calling. Otherwise this will crash the UdonBehaviour.
 
 # Examples
 ## Sending a method/event
