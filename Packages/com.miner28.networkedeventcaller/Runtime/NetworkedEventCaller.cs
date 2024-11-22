@@ -222,6 +222,7 @@ namespace Miner28.UdonUtils.Network
 
         internal void SetupCaller()
         {
+            Log("Setting up Caller");
             _methodInfos = networkManager.methodInfos;
             _methodInfosKeys = networkManager.methodInfosKeys;
         }

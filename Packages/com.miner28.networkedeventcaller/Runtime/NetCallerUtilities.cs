@@ -945,5 +945,25 @@ namespace Miner28.UdonUtils
 
             return list;
         }
+        
+        public static T GetPlayerObjectOfType<T>(this VRCPlayerApi player) where T : Component
+        {
+            var objects = Networking.GetPlayerObjects(player);
+            foreach (var obj in objects)
+            {
+                if (obj.TryGetComponentCustom(out T component))
+                {
+                    return component;
+                }
+            }
+            
+            return null;
+        }
+        
+        public static bool TryGetComponentCustom<T>(this GameObject gameObject, out T component) where T : Component
+        {
+            component = gameObject.GetComponent<T>();
+            return component != null;
+        }
     }
 }
