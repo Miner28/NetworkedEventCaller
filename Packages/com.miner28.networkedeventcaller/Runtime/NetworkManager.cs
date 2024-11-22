@@ -1,7 +1,6 @@
-using System;
+﻿using System;
 using UdonSharp;
 using UnityEngine;
-using UnityEngine.Serialization;
 using VRC.SDK3.Data;
 using VRC.SDKBase;
 
@@ -11,8 +10,8 @@ namespace Miner28.UdonUtils.Network
     public class NetworkManager : UdonSharpBehaviour
     {
         const int EventProcessingSpeed = 25;
-        
-        private NetworkedEventCaller _myCaller;
+
+        NetworkedEventCaller _myCaller;
         [HideInInspector] public string methodInfosJson;
         internal DataDictionary methodInfos;
         internal DataList methodInfosKeys;
@@ -28,18 +27,17 @@ namespace Miner28.UdonUtils.Network
         [HideInInspector] public bool debug;
 
         public SyncChannel syncChannel = SyncChannel.Channel1;
-        DataList _bufferQueue = new DataList();
+        readonly DataList _bufferQueue = new DataList();
         [NonSerialized] public bool networkingActive = true;
-        [NonSerialized] bool _shouldVoidEvents = false;
-        
+        [NonSerialized] bool _shouldVoidEvents;
+
         bool _runOnce;
-        
 
 
         void OnEnable()
         {
             if (_runOnce) return;
-            
+
             _runOnce = true;
             if (string.IsNullOrEmpty(methodInfosJson))
             {
@@ -56,20 +54,14 @@ namespace Miner28.UdonUtils.Network
             methodInfosKeys.Sort();
 
 
-            foreach (var @interface in sceneInterfaces)
-            {
-                @interface.SetupInterface();
-            }
+            foreach (var @interface in sceneInterfaces) @interface.SetupInterface();
         }
 
         public override void OnPlayerJoined(VRCPlayerApi player)
         {
             var playerCaller = player.GetPlayerObjectOfType<NetworkedEventCaller>();
-            if (playerCaller != null)
-            {
-                playerCaller.SetupCaller();
-            }
-            
+            if (playerCaller != null) playerCaller.SetupCaller();
+
             if (player.isLocal)
             {
                 var netCaller = player.GetPlayerObjectOfType<NetworkedEventCaller>();
@@ -78,21 +70,68 @@ namespace Miner28.UdonUtils.Network
                     _myCaller = netCaller;
                     OnCallerAssigned();
                 }
-            }   
+            }
         }
-        
 
-        private void Log(object log)
+        /// <summary>
+        ///     Toggles the state of Receiving Events, if voidEvents is true, it will void any received events
+        ///     NOTE: VRCPlayerAPI may behave weirdly if voidEvents is false. If player has left by the time the event is
+        ///     processed, the VRCPlayerAPI will be invalid and will cause networking inconsistencies
+        /// </summary>
+        /// <param name="state">Networking state</param>
+        /// <param name="voidEvents">Void Events Received</param>
+        public void ToggleNetworking(bool state, bool voidEvents)
+        {
+            _shouldVoidEvents = voidEvents;
+            networkingActive = state;
+
+            if (state) _HandleNetworkResumed();
+        }
+
+        /// <summary>
+        ///     Handles events when networking is paused
+        /// </summary>
+        internal void HandlePaused(VRCPlayerApi sender, byte[] data)
+        {
+            if (_shouldVoidEvents) return;
+
+            var buffer = new byte[data.Length];
+            Array.Copy(data, buffer, data.Length);
+            var bufferData = new DataDictionary();
+            bufferData["sender"] = new DataToken(sender);
+            bufferData["data"] = new DataToken(buffer);
+            _bufferQueue.Add(bufferData);
+        }
+
+        public void _HandleNetworkResumed()
+        {
+            if (_bufferQueue.Count == 0) return;
+
+            for (var i = 0; i < EventProcessingSpeed; i++)
+            {
+                if (_bufferQueue.Count == 0) break;
+                var data = _bufferQueue[0].DataDictionary;
+                _bufferQueue.RemoveAt(0);
+                var sender = (VRCPlayerApi)data["sender"].Reference;
+                var buffer = (byte[])data["data"].Reference;
+                _myCaller.HandleDeserialization(sender, buffer);
+            }
+
+            if (_bufferQueue.Count > 0) SendCustomEventDelayedFrames(nameof(_HandleNetworkResumed), 1);
+        }
+
+
+        void Log(object log)
         {
             if (debug) Debug.Log($"<color=#FFFF00>PoolManager</color> {log}");
         }
 
-        private void Log(string log)
+        void Log(string log)
         {
             if (debug) Debug.Log($"<color=#FFFF00>PoolManager</color> {log}");
         }
 
-        private void OnCallerAssigned()
+        void OnCallerAssigned()
         {
             foreach (var @interface in sceneInterfaces)
             {
