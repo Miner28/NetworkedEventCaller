@@ -72,7 +72,23 @@ namespace Miner28.UdonUtils.Network
                 }
             }
         }
+        
+        public override void OnPlayerRestored(VRCPlayerApi player)
+        {
+            var playerCaller = player.GetPlayerObjectOfType<NetworkedEventCaller>();
+            if (playerCaller != null) playerCaller.SetupCaller();
 
+            if (player.isLocal)
+            {
+                var netCaller = player.GetPlayerObjectOfType<NetworkedEventCaller>();
+                if (netCaller != null)
+                {
+                    _myCaller = netCaller;
+                    OnCallerAssigned();
+                }
+            }
+        }
+        
         /// <summary>
         ///     Toggles the state of Receiving Events, if voidEvents is true, it will void any received events
         ///     NOTE: VRCPlayerAPI may behave weirdly if voidEvents is false. If player has left by the time the event is
