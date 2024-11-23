@@ -17,32 +17,15 @@ namespace Miner28.UdonUtils.Network
         public override void OnInspectorGUI()
         {
             if (UdonSharpGUI.DrawDefaultUdonSharpBehaviourHeader(target)) return;
-            NetworkManager networkManager = (NetworkManager) target;
+            NetworkManager networkManager = (NetworkManager)target;
 
             networkManager.debug = EditorGUILayout.Toggle("Debug mode", networkManager.debug);
-            
+
             EditorGUILayout.Space();
 
             if (GUILayout.Button("Setup NetworkManager"))
             {
-                GameObject obj = networkManager.gameObject;
-                obj.name = "NetworkManager";
-                
-                var children = obj.GetComponentsInChildren<Transform>(true);
-                foreach (var child in children)
-                {
-                    if (child.gameObject.GetComponent<NetworkedEventCaller>() != null)
-                    {
-                        DestroyImmediate(child.gameObject);
-                    }
 
-                }
-                
-                var newChild = new GameObject("NetworkedEventCaller");
-                newChild.transform.parent = obj.transform;
-                newChild.AddComponent<NetworkedEventCaller>();
-                newChild.GetComponent<NetworkedEventCaller>().networkManager = networkManager;
-                newChild.AddComponent<VRCPlayerObject>();
             }
 
             if (GUILayout.Button("Setup NetworkInterface IDs"))
@@ -51,7 +34,37 @@ namespace Miner28.UdonUtils.Network
             }
         }
 
-        public static void HandleNetworkSetup()
+        public static void SetupNetworkManager()
+        {
+            NetworkManager networkManager = GetAllObjectsInScene().Find(x => x.GetComponent<NetworkManager>() != null)
+                ?.GetComponent<NetworkManager>();
+            
+            if (networkManager == null)
+            {
+                networkManager = new GameObject().AddComponent<NetworkManager>();
+            }
+
+            GameObject obj = networkManager.gameObject;
+            obj.name = "NetworkManager";
+
+            var children = obj.GetComponentsInChildren<Transform>(true);
+            foreach (var child in children)
+            {
+                if (child.gameObject.GetComponent<NetworkedEventCaller>() != null)
+                {
+                    DestroyImmediate(child.gameObject);
+                }
+
+            }
+
+            var newChild = new GameObject("NetworkedEventCaller");
+            newChild.transform.parent = obj.transform;
+            newChild.AddComponent<NetworkedEventCaller>();
+            newChild.GetComponent<NetworkedEventCaller>().networkManager = networkManager;
+            newChild.AddComponent<VRCPlayerObject>();
+        }
+
+    public static void HandleNetworkSetup()
         {
             var objectsInScene = GetAllObjectsInScene();
             var networkManager = objectsInScene.Find(x => x.GetComponent<NetworkManager>() != null)
