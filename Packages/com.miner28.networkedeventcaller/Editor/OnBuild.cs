@@ -66,7 +66,6 @@ namespace Miner28.UdonUtils.Network.Editor
 
         private static void SetupMethodPointers()
         {
-            NetworkManagerEditor.SetupNetworkManager();
             var objectsInScene = GetAllObjectsInScene();
             var networkManager = objectsInScene.Find(x => x.GetComponent<NetworkManager>() != null)
                 ?.GetComponent<NetworkManager>();

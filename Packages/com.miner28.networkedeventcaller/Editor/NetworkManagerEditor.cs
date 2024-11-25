@@ -25,7 +25,7 @@ namespace Miner28.UdonUtils.Network
 
             if (GUILayout.Button("Setup NetworkManager"))
             {
-
+                SetupNetworkManager();
             }
 
             if (GUILayout.Button("Setup NetworkInterface IDs"))
@@ -33,7 +33,7 @@ namespace Miner28.UdonUtils.Network
                 HandleNetworkSetup();
             }
         }
-
+        
         public static void SetupNetworkManager()
         {
             NetworkManager networkManager = GetAllObjectsInScene().Find(x => x.GetComponent<NetworkManager>() != null)
@@ -47,16 +47,13 @@ namespace Miner28.UdonUtils.Network
             GameObject obj = networkManager.gameObject;
             obj.name = "NetworkManager";
 
-            var children = obj.GetComponentsInChildren<Transform>(true);
-            foreach (var child in children)
+            var children = obj.transform.childCount;
+            for (int i = 0; i < children; i++)
             {
-                if (child.gameObject.GetComponent<NetworkedEventCaller>() != null)
-                {
-                    DestroyImmediate(child.gameObject);
-                }
-
+                var child = obj.transform.GetChild(i);
+                DestroyImmediate(child.gameObject);
             }
-
+            
             var newChild = new GameObject("NetworkedEventCaller");
             newChild.transform.parent = obj.transform;
             newChild.AddComponent<NetworkedEventCaller>();
@@ -110,7 +107,7 @@ namespace Miner28.UdonUtils.Network
             }
         }
 
-        static List<GameObject> GetAllObjectsInScene()
+        public static List<GameObject> GetAllObjectsInScene()
         {
             List<GameObject> objectsInScene = new List<GameObject>();
             foreach (GameObject go in SceneManager.GetActiveScene().GetRootGameObjects())
@@ -123,5 +120,21 @@ namespace Miner28.UdonUtils.Network
 
             return objectsInScene;
         }
+    }
+    
+    [InitializeOnLoad]
+    public static class NetworkManagerUpdater
+    {
+        static NetworkManagerUpdater()
+        {
+            var objectsInScene = NetworkManagerEditor.GetAllObjectsInScene();
+            var networkManager = objectsInScene.Find(x => x.GetComponent<NetworkManager>() != null)
+                ?.GetComponent<NetworkManager>();
+            
+            if (networkManager == null) return;
+            
+            NetworkManagerEditor.SetupNetworkManager();
+        }
+
     }
 }
