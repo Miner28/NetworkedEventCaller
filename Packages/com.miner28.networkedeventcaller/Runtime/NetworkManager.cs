@@ -65,7 +65,7 @@ namespace Miner28.UdonUtils.Network
             if (player.isLocal)
             {
                 var netCaller = player.GetPlayerObjectOfType<NetworkedEventCaller>();
-                if (netCaller != null)
+                if (netCaller != null && _myCaller == null)
                 {
                     _myCaller = netCaller;
                     OnCallerAssigned();
@@ -81,11 +81,20 @@ namespace Miner28.UdonUtils.Network
             if (player.isLocal)
             {
                 var netCaller = player.GetPlayerObjectOfType<NetworkedEventCaller>();
-                if (netCaller != null)
+                if (netCaller != null && _myCaller == null)
                 {
                     _myCaller = netCaller;
                     OnCallerAssigned();
                 }
+            }
+        }
+        
+        public void BackwardsRegister(NetworkedEventCaller caller)
+        {
+            if (Networking.GetOwner(caller.gameObject).isLocal && _myCaller == null)
+            {
+                _myCaller = caller;
+                OnCallerAssigned();
             }
         }
         

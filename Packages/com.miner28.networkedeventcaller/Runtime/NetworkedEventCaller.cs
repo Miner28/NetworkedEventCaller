@@ -232,6 +232,8 @@ namespace Miner28.UdonUtils.Network
             if (_startRun) return;
             _startRun = true;
             _debug = networkManager.debug;
+            SetupCaller();
+            networkManager.BackwardsRegister(this);
         }
 
         public override void OnPreSerialization()
