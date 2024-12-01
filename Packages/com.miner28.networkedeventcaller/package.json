@@ -1,6 +1,6 @@
 {
   "name": "com.miner28.networked-event-caller",
-  "version": "3.2.5",
+  "version": "3.2.6",
   "displayName": "NetworkedEventCaller",
   "description": "A UdonSharp preafab that allows you to call events on other UdonBehaviours across the network with support for parameters.",
   "author": {

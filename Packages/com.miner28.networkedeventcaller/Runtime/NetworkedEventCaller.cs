@@ -380,7 +380,11 @@ namespace Miner28.UdonUtils.Network
         private void SendUdonMethod(NetworkInterface target, int methodTarget, VRCPlayerApi sender)
         {
             _targetScript = target;
-            var methodKey = _methodInfosKeys[methodTarget];
+            if (!_methodInfosKeys.TryGetValue(methodTarget, out var methodKey))
+            {
+                LogError($"FATAL ERROR!! Invalid method target: {methodTarget} - can't send method if method is invalid - {target.name} - MK:{_methodInfosKeys.Count} M:{_methodInfos.Count} - Report to miner28_3");
+                return;
+            }
             var methodInfo = _methodInfos[methodKey].DataDictionary;
 
             if (methodInfo.TryGetValue("parameters", out var parametersToken))
