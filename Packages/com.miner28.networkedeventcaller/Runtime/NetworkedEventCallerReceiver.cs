@@ -8,7 +8,7 @@ namespace Miner28.UdonUtils.Network
 {
     public partial class NetworkedEventCaller : UdonSharpBehaviour
     {
-        private int ReceiveData(int startIndex)
+        int ReceiveData(int startIndex)
         {
             _bufferOffset = startIndex;
 
@@ -149,7 +149,6 @@ namespace Miner28.UdonUtils.Network
                             _parameters[_iter] = Convert.ToUInt16((syncBuffer[_bufferOffset] << Bit8) |
                                                                   syncBuffer[_bufferOffset + 1]);
                             _bufferOffset += 2;
-                            break;
                         }
 
                         break;
@@ -231,7 +230,6 @@ namespace Miner28.UdonUtils.Network
                                                                   (syncBuffer[_bufferOffset + 2] << Bit8) |
                                                                   syncBuffer[_bufferOffset + 3]);
                             _bufferOffset += 4;
-                            break;
                         }
 
                         break;
@@ -364,10 +362,10 @@ namespace Miner28.UdonUtils.Network
 
                         if (length == 5)
                         {
-                            _parameters[_iter] = Convert.ToUInt64((syncBuffer[_bufferOffset] << Bit32) |
-                                                                  (syncBuffer[_bufferOffset + 1] << Bit24) |
-                                                                  (syncBuffer[_bufferOffset + 2] << Bit16) |
-                                                                  (syncBuffer[_bufferOffset + 3] << Bit8) |
+                            _parameters[_iter] = Convert.ToUInt64(((ulong) syncBuffer[_bufferOffset] << Bit32) |
+                                                                  ((ulong)syncBuffer[_bufferOffset + 1] << Bit24) |
+                                                                  ((ulong)syncBuffer[_bufferOffset + 2] << Bit16) |
+                                                                  ((ulong)syncBuffer[_bufferOffset + 3] << Bit8) |
                                                                   syncBuffer[_bufferOffset + 4]);
                             _bufferOffset += 5;
                             break;
@@ -375,11 +373,11 @@ namespace Miner28.UdonUtils.Network
 
                         if (length == 6)
                         {
-                            _parameters[_iter] = Convert.ToUInt64((syncBuffer[_bufferOffset] << Bit40) |
-                                                                  (syncBuffer[_bufferOffset + 1] << Bit32) |
-                                                                  (syncBuffer[_bufferOffset + 2] << Bit24) |
-                                                                  (syncBuffer[_bufferOffset + 3] << Bit16) |
-                                                                  (syncBuffer[_bufferOffset + 4] << Bit8) |
+                            _parameters[_iter] = Convert.ToUInt64(((ulong)syncBuffer[_bufferOffset] << Bit40) |
+                                                                  ((ulong)syncBuffer[_bufferOffset + 1] << Bit32) |
+                                                                  ((ulong)syncBuffer[_bufferOffset + 2] << Bit24) |
+                                                                  ((ulong)syncBuffer[_bufferOffset + 3] << Bit16) |
+                                                                  ((ulong)syncBuffer[_bufferOffset + 4] << Bit8) |
                                                                   syncBuffer[_bufferOffset + 5]);
                             _bufferOffset += 6;
                             break;
@@ -387,12 +385,12 @@ namespace Miner28.UdonUtils.Network
 
                         if (length == 7)
                         {
-                            _parameters[_iter] = Convert.ToUInt64((syncBuffer[_bufferOffset] << Bit48) |
-                                                                  (syncBuffer[_bufferOffset + 1] << Bit40) |
-                                                                  (syncBuffer[_bufferOffset + 2] << Bit32) |
-                                                                  (syncBuffer[_bufferOffset + 3] << Bit24) |
-                                                                  (syncBuffer[_bufferOffset + 4] << Bit16) |
-                                                                  (syncBuffer[_bufferOffset + 5] << Bit8) |
+                            _parameters[_iter] = Convert.ToUInt64(((ulong)syncBuffer[_bufferOffset] << Bit48) |
+                                                                  ((ulong)syncBuffer[_bufferOffset + 1] << Bit40) |
+                                                                  ((ulong)syncBuffer[_bufferOffset + 2] << Bit32) |
+                                                                  ((ulong)syncBuffer[_bufferOffset + 3] << Bit24) |
+                                                                  ((ulong)syncBuffer[_bufferOffset + 4] << Bit16) |
+                                                                  ((ulong)syncBuffer[_bufferOffset + 5] << Bit8) |
                                                                   syncBuffer[_bufferOffset + 6]);
                             _bufferOffset += 7;
                             break;
@@ -400,18 +398,16 @@ namespace Miner28.UdonUtils.Network
 
                         if (length == 8)
                         {
-                            _parameters[_iter] = Convert.ToUInt64((syncBuffer[_bufferOffset] << Bit56) |
-                                                                  (syncBuffer[_bufferOffset + 1] << Bit48) |
-                                                                  (syncBuffer[_bufferOffset + 2] << Bit40) |
-                                                                  (syncBuffer[_bufferOffset + 3] << Bit32) |
-                                                                  (syncBuffer[_bufferOffset + 4] << Bit24) |
-                                                                  (syncBuffer[_bufferOffset + 5] << Bit16) |
-                                                                  (syncBuffer[_bufferOffset + 6] << Bit8) |
+                            _parameters[_iter] = Convert.ToUInt64(((ulong)syncBuffer[_bufferOffset] << Bit56) |
+                                                                  ((ulong)syncBuffer[_bufferOffset + 1] << Bit48) |
+                                                                  ((ulong)syncBuffer[_bufferOffset + 2] << Bit40) |
+                                                                  ((ulong)syncBuffer[_bufferOffset + 3] << Bit32) |
+                                                                  ((ulong)syncBuffer[_bufferOffset + 4] << Bit24) |
+                                                                  ((ulong)syncBuffer[_bufferOffset + 5] << Bit16) |
+                                                                  ((ulong)syncBuffer[_bufferOffset + 6] << Bit8) |
                                                                   syncBuffer[_bufferOffset + 7]);
                             _bufferOffset += 8;
-                            break;
                         }
-
                         break;
                     case Types.Single:
                     {
