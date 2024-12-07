@@ -6,7 +6,7 @@ using VRC.SDKBase;
 
 namespace Miner28.UdonUtils.Network
 {
-    [UdonBehaviourSyncMode(BehaviourSyncMode.Manual)]
+    [UdonBehaviourSyncMode(BehaviourSyncMode.Manual)][DefaultExecutionOrder(Int32.MinValue + 1000000)]
     public class NetworkManager : UdonSharpBehaviour
     {
         const int EventProcessingSpeed = 25;
@@ -30,14 +30,9 @@ namespace Miner28.UdonUtils.Network
         [NonSerialized] public bool networkingActive = true;
         [NonSerialized] bool _shouldVoidEvents;
 
-        bool _runOnce;
 
-
-        void OnEnable()
+        void Start()
         {
-            if (_runOnce) return;
-
-            _runOnce = true;
             if (methodInfos == null)
             {
                 Log("FATAL: MethodInfos is empty, this should never happen. Please report this!");
