@@ -222,18 +222,20 @@ namespace Miner28.UdonUtils.Network
 
         internal void SetupCaller()
         {
+            if (_startRun) return;
+            _startRun = true;
+            
             Log("Setting up Caller");
             _methodInfos = networkManager.methodInfos;
             _methodInfosKeys = networkManager.methodInfosKeys;
+            _debug = networkManager.debug;
+            networkManager.BackwardsRegister(this);
+
         }
         
-        private void OnEnable()
+        void Start()
         {
-            if (_startRun) return;
-            _startRun = true;
-            _debug = networkManager.debug;
             SetupCaller();
-            networkManager.BackwardsRegister(this);
         }
 
         public override void OnPreSerialization()
@@ -264,6 +266,8 @@ namespace Miner28.UdonUtils.Network
                 if (_debug) Log($"Empty buffer, (Likely caused by serialization after playerLeft)");
                 return;
             }
+            
+            if (!_startRun) SetupCaller();
 
             if (networkManager.networkingActive)
             {

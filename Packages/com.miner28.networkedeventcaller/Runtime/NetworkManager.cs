@@ -12,8 +12,7 @@ namespace Miner28.UdonUtils.Network
         const int EventProcessingSpeed = 25;
 
         NetworkedEventCaller _myCaller;
-        [HideInInspector] public string methodInfosJson;
-        internal DataDictionary methodInfos;
+        public DataDictionary methodInfos;
         internal DataList methodInfosKeys;
         internal DataList methodInfosValues;
 
@@ -39,15 +38,10 @@ namespace Miner28.UdonUtils.Network
             if (_runOnce) return;
 
             _runOnce = true;
-            if (string.IsNullOrEmpty(methodInfosJson))
+            if (methodInfos == null)
             {
-                Log("MethodInfosJson is empty");
+                Log("FATAL: MethodInfos is empty, this should never happen. Please report this!");
                 methodInfos = new DataDictionary();
-            }
-            else
-            {
-                VRCJson.TryDeserializeFromJson(methodInfosJson, out var json);
-                methodInfos = json.DataDictionary;
             }
 
             methodInfosKeys = methodInfos.GetKeys();
