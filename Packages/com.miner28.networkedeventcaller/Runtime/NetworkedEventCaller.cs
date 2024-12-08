@@ -224,11 +224,11 @@ namespace Miner28.UdonUtils.Network
         {
             if (_startRun) return;
             _startRun = true;
-            _debug = networkManager.debug;
-
+            
             Log("Setting up Caller");
             _methodInfos = networkManager.methodInfos;
             _methodInfosKeys = networkManager.methodInfosKeys;
+            _debug = networkManager.debug;
             networkManager.BackwardsRegister(this);
 
         }
@@ -412,8 +412,6 @@ namespace Miner28.UdonUtils.Network
 
         internal void _PrepareSend(uint intTarget, string method, uint scriptTarget, DataToken[] data)
         {
-            if (!_startRun) SetupCaller();
-            
             SyncTarget target = SyncTarget.All;
             SyncChannel syncChannel = (SyncChannel)(-1);
             if (intTarget <= 100)
