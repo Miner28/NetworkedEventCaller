@@ -75,7 +75,8 @@ namespace Miner28.UdonUtils.Network.Editor
             Patcher.LoadMethodInfos();
             Patcher.FilterMethodInfos();
 
-            networkManager.methodInfos = Patcher.filteredMethodInfos;
+            VRCJson.TrySerializeToJson(Patcher.filteredMethodInfos, JsonExportType.Minify, out var json);
+            networkManager.methodInfosJson = json.String;
         }
 
         private static void OnBuildStarted()
