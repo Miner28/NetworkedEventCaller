@@ -222,18 +222,21 @@ namespace Miner28.UdonUtils.Network
 
         internal void SetupCaller()
         {
+            if (_startRun) return;
+            _debug = networkManager.debug;
+            _startRun = true;
             Log("Setting up Caller");
+
+            SetupCaller();
+            networkManager.BackwardsRegister(this);
+            
             _methodInfos = networkManager.methodInfos;
             _methodInfosKeys = networkManager.methodInfosKeys;
         }
-        
-        private void OnEnable()
+
+        void Start()
         {
-            if (_startRun) return;
-            _startRun = true;
-            _debug = networkManager.debug;
             SetupCaller();
-            networkManager.BackwardsRegister(this);
         }
 
         public override void OnPreSerialization()

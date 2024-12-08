@@ -6,7 +6,7 @@ using VRC.SDKBase;
 
 namespace Miner28.UdonUtils.Network
 {
-    [UdonBehaviourSyncMode(BehaviourSyncMode.Manual)]
+    [UdonBehaviourSyncMode(BehaviourSyncMode.Manual)] [DefaultExecutionOrder(Int32.MinValue + 1000000)]
     public class NetworkManager : UdonSharpBehaviour
     {
         const int EventProcessingSpeed = 25;
@@ -34,7 +34,7 @@ namespace Miner28.UdonUtils.Network
         bool _runOnce;
 
 
-        void OnEnable()
+        void Start()
         {
             if (_runOnce) return;
 
