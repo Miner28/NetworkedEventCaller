@@ -266,6 +266,8 @@ namespace Miner28.UdonUtils.Network
                 if (_debug) Log($"Empty buffer, (Likely caused by serialization after playerLeft)");
                 return;
             }
+            
+            if (!_startRun) SetupCaller();
 
             if (networkManager.networkingActive)
             {
@@ -410,6 +412,8 @@ namespace Miner28.UdonUtils.Network
 
         internal void _PrepareSend(uint intTarget, string method, uint scriptTarget, DataToken[] data)
         {
+            if (!_startRun) SetupCaller();
+            
             SyncTarget target = SyncTarget.All;
             SyncChannel syncChannel = (SyncChannel)(-1);
             if (intTarget <= 100)
